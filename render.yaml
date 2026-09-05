@@ -96,13 +96,15 @@ services:
       - key: REFRESH_TOKEN_TTL
         value: 30d
 
-      # Render supplies a bare hostname here; main.ts prefixes https:// so the
-      # two services wire themselves together with no hand-typed URL to drift.
+      # NOT `fromService ... property: host`. That returns the INTERNAL service
+      # name ("replyiq-web"), not the public FQDN, so the allow-origin header
+      # came back as "https://replyiq-web" and every browser request was
+      # blocked by CORS while curl - which sends no Origin - worked fine.
+      # The public hostname is deterministic from the service name, so it is
+      # written out explicitly. Update both values together if a service is
+      # ever renamed.
       - key: CORS_ORIGINS
-        fromService:
-          type: web
-          name: replyiq-web
-          property: host
+        value: https://replyiq-web.onrender.com
 
       - key: RATE_LIMIT_TTL
         value: "60"
@@ -131,23 +133,23 @@ services:
     name: replyiq-web
     runtime: static
 
-    # VITE_API_URL is baked in at build time, so it is composed here from the
-    # API's hostname rather than duplicated as a literal.
+    # Vite reads VITE_-prefixed variables from the environment at build time, so
+    # VITE_API_URL below is baked into the bundle here. It is a literal for the
+    # same reason CORS_ORIGINS is: `fromService ... property: host` yields the
+    # internal service name, which produced "https://replyiq-api" in the shipped
+    # bundle - a host that does not resolve.
     buildCommand: >-
       npm install -g pnpm@11.13.0 &&
       pnpm install --frozen-lockfile &&
-      VITE_API_URL="https://$API_HOST" npx turbo build --filter=@replyiq/web...
+      npx turbo build --filter=@replyiq/web...
 
     staticPublishPath: apps/web/dist
 
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: API_HOST
-        fromService:
-          type: web
-          name: replyiq-api
-          property: host
+      - key: VITE_API_URL
+        value: https://replyiq-api.onrender.com
 
     routes:
       # Single-page app: every unmatched path must return index.html, or a
