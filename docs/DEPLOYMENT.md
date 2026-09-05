@@ -82,7 +82,8 @@ funnel end to end without owning a domain — including in production.
 | Build fails on `pnpm install` | `NODE_VERSION` isn't 22, or `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile. |
 | API boots then exits immediately | Look for `FATAL: ALLOW_DEV_VERIFICATION_BYPASS=true is set with NODE_ENV=production`. That's the guard doing its job — set it to `false`. |
 | Dashboard loads, every request fails | `VITE_API_URL` is baked in at **build** time. If you change it, you must redeploy the static site, not just restart it. |
-| CORS errors in the browser console | `CORS_ORIGINS` on the API doesn't include the dashboard's origin. It should be wired automatically; check it resolved. |
+| CORS errors in the browser console | `CORS_ORIGINS` must be the **full origin** (`https://replyiq-web.onrender.com`), not a bare hostname. Do not use `fromService … property: host` for it — that returns the internal service name, and the API will answer `access-control-allow-origin: https://replyiq-web`, which matches nothing. |
+| Sign-up works but the wizard won't advance | A PATCH being blocked by CORS. The allowed methods are declared explicitly in `main.ts`; if they ever get dropped, the preflight advertises only `GET,HEAD,POST` and every onboarding step fails while login still looks fine. |
 | First request takes ~50 seconds | The free service was asleep. Expected. |
 | `P1001: Can't reach database` | The database is still provisioning, or it expired. Check its status. |
 
@@ -129,6 +130,16 @@ pnpm --filter @replyiq/database exec prisma migrate deploy
 pnpm --filter @replyiq/database exec prisma db seed
 pnpm dev
 ```
+
+> **CORS is not exercised locally.** The Vite dev server proxies `/api` to the
+> API, so the browser only ever talks to one origin. Cross-origin behaviour —
+> allowed origins, allowed methods, preflight — is first exercised in a deployed
+> environment, and has broken there while every local test passed. When you
+> change anything CORS-related, verify it against the deployed URL:
+>
+> ```bash
+> curl -sD - -o /dev/null -X OPTIONS >   -H "Origin: https://replyiq-web.onrender.com" >   -H "Access-Control-Request-Method: PATCH" >   https://replyiq-api.onrender.com/api/v1/businesses/x | grep -i access-control
+> ```
 
 Dashboard on `http://localhost:5173`, API on `http://localhost:3000`. To reach
 it from your phone, start the dashboard with `pnpm --filter @replyiq/web dev --host`

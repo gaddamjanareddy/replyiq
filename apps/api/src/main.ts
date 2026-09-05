@@ -38,6 +38,18 @@ async function bootstrap() {
   await app.register(cors, {
     origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
+    // Declared explicitly. Left to the default, the preflight advertised only
+    // GET, HEAD and POST, so every PATCH (all four onboarding steps, the
+    // business profile) and every DELETE (removing a domain) was blocked by
+    // the browser. Registration and login still worked, which made the app
+    // look healthy while onboarding was impossible to finish.
+    //
+    // This never showed up locally because the Vite dev server proxies /api,
+    // making requests same-origin - CORS is only exercised in a deployed
+    // environment where the dashboard and API are on different hosts.
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400,
   });
 
   app.useGlobalFilters(new GlobalExceptionFilter(app.get(Logger)));
