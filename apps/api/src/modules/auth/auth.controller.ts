@@ -11,6 +11,12 @@ import { RegisterWorkspaceDto } from './dto/register-workspace.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
+import { PasswordResetService } from './password-reset.service.js';
  
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
  
@@ -22,6 +28,7 @@ export class AuthController {
   constructor(
     private readonly workspaceProvisioningService: WorkspaceProvisioningService,
     private readonly authService: AuthService,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   @Post('register')
@@ -73,5 +80,42 @@ export class AuthController {
     @Request() req: { user: JwtPayload },
   ): Promise<CurrentUserResponse> {
     return this.authService.getCurrentUser(req.user);
+  }
+
+  /**
+   * Ask for a reset link.
+   *
+   * Always 202 with the same body, whether or not the address has an account.
+   * Answering differently would turn this into an account-enumeration oracle,
+   * which is the classic way this endpoint leaks. The one exception is a
+   * deployment with no email transport at all, which is a fact about the
+   * server rather than about any address.
+   */
+  @Post('password/forgot')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.ACCEPTED)
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Request() req: { ip?: string },
+  ): Promise<{ success: boolean; message: string }> {
+    await this.passwordResetService.requestReset(dto.email, req.ip);
+    return {
+      success: true,
+      message: 'If that address has an account, a reset link is on its way.',
+    };
+  }
+
+  /** Complete a reset. Revokes every session for the account on success. */
+  @Post('password/reset')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.passwordResetService.confirmReset(dto.token, dto.password);
+    return {
+      success: true,
+      message: 'Your password has been changed. Sign in with your new password.',
+    };
   }
 }

@@ -13,6 +13,26 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.string().default('10'),
   VERIFICATION_RATE_LIMIT_MAX: z.string().default('5'),
 
+  // --- Transactional email -------------------------------------------------
+  /**
+   * 'log' prints messages to stdout instead of sending them, which is how the
+   * reset link is read during local development. 'resend' actually delivers.
+   *
+   * A production deployment left on 'log' does not fail to boot - an
+   * unconfigured mailer is a missing feature, not a compromised one, and
+   * refusing to start would take a running product offline over a capability
+   * it never had. Password reset declines honestly instead.
+   */
+  EMAIL_TRANSPORT: z.enum(['log', 'resend']).default('log'),
+  RESEND_API_KEY: z.string().default(''),
+  /** Envelope sender, e.g. 'ReplyIQ <noreply@yourdomain.com>'. */
+  EMAIL_FROM: z.string().default(''),
+  /**
+   * Public origin of the dashboard, used to build links inside emails. Must be
+   * the address a user's browser can reach - not an internal service name.
+   */
+  WEB_URL: z.string().default('http://localhost:5173'),
+
   // --- Domain verification -------------------------------------------------
   /**
    * Enables the DEV_BYPASS verification method. Only honoured when NODE_ENV is

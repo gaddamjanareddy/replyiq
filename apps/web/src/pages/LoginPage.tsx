@@ -6,8 +6,9 @@ import type { ErrorCopy } from '../api/error-copy';
 import { copyForCode } from '../api/error-copy';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { ErrorBanner } from '../components/ui/Banner';
+import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { AuthShell } from '../components/auth/AuthShell';
+import { PasswordInput } from '../components/ui/PasswordInput';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,6 +19,10 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string })?.from ?? '/dashboard';
+  // Set by the reset flow. Confirming it here closes the loop - otherwise a
+  // successful reset dumps the user on a plain sign-in form with no sign that
+  // anything worked.
+  const justReset = new URLSearchParams(location.search).get('reset') === '1';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +64,12 @@ export function LoginPage() {
         </>
       }
     >
+      {justReset && !error && (
+        <Banner tone="success" title="Password changed" className="mb-4" live>
+          Sign in with your new password. You've been signed out on other devices.
+        </Banner>
+      )}
+
       {error && <ErrorBanner copy={error} className="mb-4" />}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -71,15 +82,24 @@ export function LoginPage() {
           placeholder="you@company.com"
           autoComplete="email"
         />
-        <Input
-          label="Password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Your password"
-          autoComplete="current-password"
-        />
+        <div>
+          <PasswordInput
+            label="Password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your password"
+            autoComplete="current-password"
+          />
+          <div className="mt-1.5 text-right">
+            <Link
+              to="/forgot-password"
+              className="text-sm font-medium text-brand-700 hover:text-brand-800"
+            >
+              Forgot password?
+            </Link>
+          </div>
+        </div>
         <Button type="submit" loading={loading} loadingLabel="Signing in…" fullWidth size="lg">
           Sign in
         </Button>

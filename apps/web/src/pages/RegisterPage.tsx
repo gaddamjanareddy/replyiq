@@ -12,6 +12,7 @@ import {
   PasswordRequirements,
   isPasswordAcceptable,
 } from '../components/auth/PasswordRequirements';
+import { PasswordInput } from '../components/ui/PasswordInput';
 
 export function RegisterPage() {
   const [businessName, setBusinessName] = useState('');
@@ -103,9 +104,8 @@ export function RegisterPage() {
           autoComplete="email"
         />
         <div>
-          <Input
+          <PasswordInput
             label="Password"
-            type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}

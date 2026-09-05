@@ -13,6 +13,13 @@ export enum ErrorCode {
   AUTH_UNAUTHENTICATED = 'AUTH_UNAUTHENTICATED',
   AUTH_REFRESH_INVALID = 'AUTH_REFRESH_INVALID',
   AUTH_EMAIL_TAKEN = 'AUTH_EMAIL_TAKEN',
+  /** The reset link is unknown, expired, or already spent. Deliberately one
+   *  code for all three - distinguishing them tells an attacker which guesses
+   *  were close. */
+  AUTH_RESET_TOKEN_INVALID = 'AUTH_RESET_TOKEN_INVALID',
+  /** This deployment has no email transport, so reset cannot work at all. A
+   *  property of the deployment, not of any account. */
+  AUTH_RESET_UNAVAILABLE = 'AUTH_RESET_UNAVAILABLE',
 
   // Authorization / resources
   AUTHZ_FORBIDDEN = 'AUTHZ_FORBIDDEN',

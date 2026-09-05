@@ -9,12 +9,18 @@ import { AppModule } from './app.module.js';
  
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
 import { assertVerificationBypassNotEnabledInProduction } from './config/verification-methods.js';
+import { warnIfEmailNotConfiguredInProduction } from './infrastructure/email/email.service.js';
 
 async function bootstrap() {
   // Fail loud, at deploy time, rather than running forever with a weakened
   // verification path (FR-TEST-10). Checked before anything else starts, so a
   // misconfigured production deployment never accepts a single request.
   assertVerificationBypassNotEnabledInProduction();
+
+  // Not fatal, unlike the check above: a missing mailer disables one feature,
+  // it does not weaken a live one. Password reset declines honestly rather
+  // than accepting requests it cannot fulfil.
+  warnIfEmailNotConfiguredInProduction();
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

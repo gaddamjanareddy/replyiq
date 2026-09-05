@@ -64,6 +64,26 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
     retryable: false,
     tone: 'error',
   },
+  AUTH_RESET_TOKEN_INVALID: {
+    title: 'This reset link is no longer valid.',
+    // One message for unknown, expired and already-used, matching the server.
+    // Distinguishing them would tell an attacker which guesses were close, and
+    // the user's next step is identical in all three cases anyway.
+    detail: 'Links work once and expire after 30 minutes. Ask for a new one.',
+    action: 'Request a new link',
+    retryable: false,
+    tone: 'warning',
+  },
+  AUTH_RESET_UNAVAILABLE: {
+    title: 'Password reset is unavailable right now.',
+    // Honest rather than reassuring. The alternative - accepting the request
+    // and saying "check your inbox" - leaves someone waiting for a message
+    // that is never coming.
+    detail: 'This deployment cannot send email yet. Contact support to get back in.',
+    action: 'Back to sign in',
+    retryable: false,
+    tone: 'error',
+  },
 
   // ── Authorization and lookup ────────────────────────────────────────────
   AUTHZ_FORBIDDEN: {

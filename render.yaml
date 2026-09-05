@@ -128,6 +128,30 @@ services:
       - key: ALLOW_DEV_VERIFICATION_BYPASS
         value: "false"
 
+      # ── Transactional email ────────────────────────────────────────────────
+      # Password reset is the only feature that needs email, and it cannot work
+      # without it. Left on "log", the API still boots and still serves every
+      # other feature - it simply declines reset requests with a clear message
+      # instead of promising an email it cannot send.
+      #
+      # To switch it on: create a Resend account (free tier is ample for
+      # transactional volume), verify a sending domain, then set EMAIL_TRANSPORT
+      # to "resend", paste the key into RESEND_API_KEY in the Render dashboard
+      # (sync: false keeps it out of this file and out of git), and set
+      # EMAIL_FROM to an address on the verified domain.
+      - key: EMAIL_TRANSPORT
+        value: "log"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: ""
+
+      # Public origin of the dashboard. Used to build the link inside reset
+      # emails, so it must be what a browser can reach - not an internal
+      # service name. Same literal-value reasoning as CORS_ORIGINS.
+      - key: WEB_URL
+        value: https://replyiq-web.onrender.com
+
   # ── Dashboard ───────────────────────────────────────────────────────────────
   - type: web
     name: replyiq-web
