@@ -4,6 +4,13 @@
 # dashboard as a static site. Point Render at this file (New → Blueprint) and it
 # creates all three and wires them to each other.
 #
+# ── Why pnpm is installed from npm rather than via corepack ───────────────────
+# `corepack enable` resolves the version pinned in package.json and verifies its
+# signature. The corepack bundled with Node 22 predates pnpm 11 and commonly
+# fails that check in CI ("Cannot find matching keyid"), surfacing as an
+# unexplained build failure. Installing the pinned version directly from npm is
+# deterministic and has no signature step to go wrong.
+#
 # ── Why the native Node runtime rather than Docker ────────────────────────────
 # A Dockerfile for a pnpm workspace has to reproduce the symlinked node_modules
 # layout and the generated Prisma client across build stages, which is a real
@@ -38,7 +45,7 @@ services:
     region: singapore
 
     buildCommand: >-
-      corepack enable &&
+      npm install -g pnpm@11.13.0 &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @replyiq/database exec prisma generate &&
       npx turbo build --filter=@replyiq/api...
@@ -115,7 +122,7 @@ services:
     # VITE_API_URL is baked in at build time, so it is composed here from the
     # API's hostname rather than duplicated as a literal.
     buildCommand: >-
-      corepack enable &&
+      npm install -g pnpm@11.13.0 &&
       pnpm install --frozen-lockfile &&
       VITE_API_URL="https://$API_HOST" npx turbo build --filter=@replyiq/web...
 
