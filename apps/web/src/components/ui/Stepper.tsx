@@ -42,7 +42,7 @@ export function Stepper({ steps, current, furthestReachable, onSelect }: Stepper
               disabled={!interactive}
               aria-current={isCurrent ? 'step' : undefined}
               className={[
-                'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                'flex w-full items-start gap-3 rounded-lg border p-3 text-left interactive',
                 isCurrent
                   ? 'border-brand-300 bg-brand-50'
                   : step.completed
@@ -117,7 +117,10 @@ export function ProgressBar({ completed, total }: { completed: number; total: nu
       className="h-1.5 w-full overflow-hidden rounded-full bg-ink-200"
     >
       <div
-        className="h-full rounded-full bg-brand-600 transition-[width] duration-300"
+        // Eased over half a second: long enough to see the bar move when a step
+        // completes, which is the moment the user is looking for confirmation
+        // that their click did something.
+        className="h-full rounded-full bg-brand-600 transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{ width: `${pct}%` }}
       />
     </div>

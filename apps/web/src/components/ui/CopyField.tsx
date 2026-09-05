@@ -36,11 +36,11 @@ export function CopyButton({ value, label = 'value', className = '' }: CopyButto
       type="button"
       onClick={handleCopy}
       aria-label={`Copy ${label}`}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 ${className}`}
+      className={`interactive inline-flex shrink-0 items-center gap-1.5 rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50 ${className}`}
     >
       {state === 'copied' ? (
         <>
-          <svg className="h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" aria-hidden="true">
+          <svg className="h-3.5 w-3.5 text-emerald-600 animate-pop" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
           Copied

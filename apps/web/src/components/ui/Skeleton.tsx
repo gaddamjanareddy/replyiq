@@ -7,7 +7,9 @@
  * accompanying status text instead.
  */
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-ink-200 ${className}`} aria-hidden="true" />;
+  // `skeleton` is a travelling highlight (see index.css). A pulsing block
+  // reads as "something is broken"; a sweep reads as "content is coming".
+  return <div className={`skeleton rounded ${className}`} aria-hidden="true" />;
 }
 
 /** Ragged widths so the placeholder reads as text rather than a loading bar. */

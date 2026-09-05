@@ -74,7 +74,10 @@ export function Banner({ tone, title, children, action, className = '', live }: 
     <div
       role={live ? 'status' : undefined}
       aria-live={live ? 'polite' : undefined}
-      className={`flex gap-3 rounded-lg border p-4 ${styles.wrap} ${className}`}
+      // Banners appear in response to something the user did, so they should
+      // look like they arrived from somewhere rather than blinking into place -
+      // that movement is what draws the eye without a jolt.
+      className={`flex gap-3 rounded-lg border p-4 animate-rise ${styles.wrap} ${className}`}
     >
       <svg
         className={`h-5 w-5 shrink-0 mt-0.5 ${styles.icon}`}

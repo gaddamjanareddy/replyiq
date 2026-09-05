@@ -1,17 +1,32 @@
 @import "tailwindcss";
 
 /**
- * ReplyIQ design tokens.
+ * ReplyIQ design system.
  *
- * Tailwind v4 reads @theme and generates utilities from it, so these names are
- * usable as `bg-brand-600`, `text-ink-500`, `shadow-card` and so on. Defining
- * them here rather than sprinkling raw palette classes through components means
- * a brand change is one file, and it makes "which blue?" a question with one
- * answer.
+ * Tailwind v4 reads @theme and generates utilities from it, so every token here
+ * is usable as `bg-brand-600`, `text-ink-500`, `shadow-raised`, `animate-rise`.
+ * Defining them centrally means a brand change is one file, and it makes
+ * "which blue?" a question with exactly one answer.
+ *
+ * Three things this system takes seriously that the previous one did not:
+ *
+ *   1. MOTION AS FEEDBACK, NOT DECORATION. Every animation here answers a
+ *      question the user is actually asking: did that work? where did this come
+ *      from? is something happening? Nothing moves for the sake of moving, and
+ *      nothing moves for longer than ~250ms except deliberate "still working"
+ *      indicators.
+ *   2. ELEVATION MEANS SOMETHING. Four levels, each with a job: flat, card,
+ *      raised (hover/interactive), overlay (modals). Not an arbitrary ramp.
+ *   3. COLOUR IS NEVER THE ONLY SIGNAL. The palette is tuned for contrast on
+ *      white at small sizes, and every semantic colour is paired with an icon
+ *      and distinct wording at the component level.
  */
+
 @theme {
-  /* Brand. A slightly deeper, less saturated blue than Tailwind's default -
-     it holds up better against white at small text sizes. */
+  /* ── Brand ──────────────────────────────────────────────────────────────
+     A deeper, slightly desaturated blue. Tailwind's default blue-600 is
+     bright enough that small text on white sits on the edge of comfortable;
+     this holds up at 12px and still reads as confident rather than corporate. */
   --color-brand-50: oklch(0.971 0.014 254.6);
   --color-brand-100: oklch(0.932 0.032 255.6);
   --color-brand-200: oklch(0.882 0.059 254.1);
@@ -23,8 +38,10 @@
   --color-brand-800: oklch(0.424 0.199 265.6);
   --color-brand-900: oklch(0.379 0.146 265.5);
 
-  /* Neutral text and surfaces. "ink" reads better than "gray" at call sites:
-     text-ink-500 says what it is for. */
+  /* ── Ink (text and surfaces) ────────────────────────────────────────────
+     Named "ink" rather than "gray" because the call site reads better:
+     `text-ink-500` says what it is for. Very slightly blue-shifted so it
+     sits with the brand rather than against it. */
   --color-ink-50: oklch(0.985 0.002 247.8);
   --color-ink-100: oklch(0.967 0.003 264.5);
   --color-ink-200: oklch(0.928 0.006 264.5);
@@ -36,47 +53,120 @@
   --color-ink-800: oklch(0.278 0.033 256.8);
   --color-ink-900: oklch(0.21 0.034 264.7);
 
+  /* ── Elevation ──────────────────────────────────────────────────────────
+     Cool-toned shadows (16 24 40) rather than pure black: black shadows on a
+     slightly blue ground read as dirty grey. */
   --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06);
   --shadow-raised: 0 4px 8px -2px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
   --shadow-overlay: 0 20px 24px -4px rgb(16 24 40 / 0.10), 0 8px 8px -4px rgb(16 24 40 / 0.04);
+  --shadow-focus: 0 0 0 3px oklch(0.882 0.059 254.1);
 
   --radius-card: 0.75rem;
+
+  /* ── Motion ─────────────────────────────────────────────────────────────
+     Two easings, used consistently:
+       ease-out   things arriving (they decelerate into place)
+       ease-standard  things moving or leaving
+     Durations are short on purpose. 150ms reads as instant-but-smooth; past
+     ~300ms an interface starts to feel like it is thinking about it. */
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --animate-fade-in: fade-in 180ms var(--ease-out-soft);
+  --animate-rise: rise 220ms var(--ease-out-soft);
+  --animate-scale-in: scale-in 180ms var(--ease-out-soft);
+  --animate-sheet-up: sheet-up 260ms var(--ease-out-soft);
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-pop: pop 320ms var(--ease-out-soft);
+  --animate-pulse-ring: pulse-ring 1.8s var(--ease-standard) infinite;
+}
+
+/* Banners, results, anything that appears in response to an action: it should
+   look like it arrived, so the eye is drawn to it without a flash. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Mobile dialogs enter as a sheet from the bottom edge, matching where the
+   thumb already is and where the platform convention puts them. */
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Loading placeholders: a travelling highlight reads as "content is coming",
+   where a pulsing block reads as "something is broken". */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+/* Reserved for genuine success moments - a domain verifying, setup completing.
+   Used sparingly so it keeps meaning something. */
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.8); }
+  55% { transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* A slow halo on a live status dot: conveys "this is on right now" without a
+   spinner's implication that the user should wait. */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 currentColor; opacity: 0.5; }
+  70% { box-shadow: 0 0 0 6px currentColor; opacity: 0; }
+  100% { box-shadow: 0 0 0 0 currentColor; opacity: 0; }
 }
 
 @layer base {
   html {
-    /* Anchor links and programmatic scrolls ease instead of jumping - except
-       for anyone who has asked their system not to animate. */
     scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     @apply bg-ink-50 text-ink-900 antialiased;
+    /* Opt into the more legible single-storey glyphs where the font offers
+       them - notably the `l`/`1` distinction, which matters when someone is
+       eyeballing a verification token. */
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
   /**
-   * One focus treatment for the whole app, applied only for keyboard users.
-   * Visible focus is not decoration: without it, a keyboard user cannot tell
-   * where they are (NFR-USE-07). `:focus-visible` keeps it off mouse clicks so
-   * it never reads as a stuck highlight.
+   * One focus treatment for the whole app, keyboard-only. Visible focus is not
+   * decoration: without it a keyboard user cannot tell where they are
+   * (NFR-USE-07). `:focus-visible` keeps it off mouse clicks so it never reads
+   * as a stuck highlight.
    */
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-600;
   }
 
-  /* Monospace values (tokens, DNS records) must be unambiguous: a user is
-     going to compare these character by character. */
+  /* Monospace values - tokens, DNS records - must be unambiguous: someone is
+     going to compare these character by character, so ligatures are off. */
   code, kbd, samp, pre {
     font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
     font-variant-ligatures: none;
   }
+
+  /* Selecting a token to copy it by hand should select the whole thing. */
+  code { @apply selection:bg-brand-100; }
 }
 
 @layer utilities {
   /**
    * Visible only to screen readers. Used for live-region status announcements
-   * where a visual banner already conveys the same thing to sighted users.
+   * where a visual change already conveys the same thing to sighted users.
    */
   .sr-only {
     position: absolute;
@@ -89,12 +179,46 @@
     white-space: nowrap;
     border-width: 0;
   }
+
+  /* The travelling highlight used by loading skeletons. */
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--color-ink-200) 0%,
+      var(--color-ink-100) 40%,
+      var(--color-ink-200) 80%
+    );
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Interactive surfaces: a small, quick lift on hover and a press on click.
+     The press is what makes a button feel physical rather than painted. */
+  .interactive {
+    transition:
+      transform 120ms var(--ease-standard),
+      box-shadow 160ms var(--ease-standard),
+      background-color 120ms var(--ease-standard);
+  }
+  .interactive:active:not(:disabled) {
+    transform: translateY(0.5px) scale(0.995);
+  }
+
+  /* Stagger helper for lists that animate in, so rows cascade rather than
+     appearing as one block. Capped at 6 - past that it reads as slow. */
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger > *:nth-child(n+6) { animation-delay: 200ms; }
 }
 
 /**
  * Respect the OS "reduce motion" setting everywhere at once. Vestibular
- * disorders make spinners and slides genuinely unpleasant, and this is one
- * declaration instead of a decision in every component.
+ * disorders make movement genuinely unpleasant, and this is one declaration
+ * instead of a decision in every component. Opacity fades are left alone -
+ * they are not motion - but anything that travels or scales is stopped.
  */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -104,5 +228,8 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .interactive:active:not(:disabled) {
+    transform: none;
   }
 }

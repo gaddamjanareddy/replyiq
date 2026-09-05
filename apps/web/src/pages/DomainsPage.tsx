@@ -130,7 +130,7 @@ export function DomainsPage() {
               }
             />
           ) : (
-            <ul className="divide-y divide-ink-200">
+            <ul className="divide-y divide-ink-200 stagger">
               {domains.map((d) => (
                 <DomainRow
                   key={d.id}
@@ -183,7 +183,7 @@ function DomainRow({
   const verified = domain.status === 'VERIFIED';
 
   return (
-    <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex animate-rise flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium text-ink-900">{domain.domain}</span>

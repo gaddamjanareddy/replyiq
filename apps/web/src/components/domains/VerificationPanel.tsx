@@ -113,6 +113,7 @@ export function VerificationPanel({ businessId, domain, onVerified }: Verificati
       <Banner
         tone={isSandbox ? 'test' : 'success'}
         title={isSandbox ? 'Verified as a test domain' : `${domain.domain} is verified`}
+        live
       >
         {isSandbox
           ? 'This is a reserved test address, so it verifies instantly. Add a real domain when you’re ready to go live.'

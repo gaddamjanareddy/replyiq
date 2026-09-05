@@ -54,7 +54,13 @@ export function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
               {setupComplete && (
-                <Badge variant={modeBadge.variant} dot>
+                // The halo only fires for LIVE. TEST and INACTIVE are states to
+                // resolve, not states to celebrate.
+                <Badge
+                  variant={modeBadge.variant}
+                  dot
+                  pulse={business.serviceMode === 'LIVE'}
+                >
                   {modeBadge.label}
                 </Badge>
               )}
@@ -143,7 +149,7 @@ function StatCard({
   to?: string;
 }) {
   const content = (
-    <Card className={to ? 'transition-shadow hover:shadow-raised' : ''}>
+    <Card className={to ? 'interactive hover:shadow-raised hover:-translate-y-px' : ''}>
       <CardBody>
         <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
         <p className="mt-1 truncate text-sm font-semibold text-ink-900">{value}</p>

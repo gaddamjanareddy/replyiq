@@ -9,6 +9,13 @@ interface BadgeProps {
   className?: string;
   /** Small leading dot. Useful for status pills where colour alone is not enough. */
   dot?: boolean;
+  /**
+   * Adds a slow halo to the dot, for a state that is genuinely live right now.
+   * Deliberately not a spinner: a spinner implies the user should wait, where
+   * this just says "on". Use it only for LIVE - if everything pulses, nothing
+   * reads as special.
+   */
+  pulse?: boolean;
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
@@ -31,12 +38,21 @@ const dotStyles: Record<BadgeVariant, string> = {
   test: 'bg-violet-500',
 };
 
-export function Badge({ variant = 'default', children, className = '', dot }: BadgeProps) {
+export function Badge({ variant = 'default', children, className = '', dot, pulse }: BadgeProps) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${variantStyles[variant]} ${className}`}
     >
-      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dotStyles[variant]}`} aria-hidden="true" />}
+      {dot && (
+        <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+          {pulse && (
+            <span
+              className={`absolute inset-0 rounded-full animate-pulse-ring ${dotStyles[variant]}`}
+            />
+          )}
+          <span className={`relative h-1.5 w-1.5 rounded-full ${dotStyles[variant]}`} />
+        </span>
+      )}
       {children}
     </span>
   );

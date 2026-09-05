@@ -52,7 +52,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       aria-busy={loading || undefined}
       className={[
         'inline-flex items-center justify-center rounded-lg font-medium',
-        'transition-colors duration-150',
+        // `interactive` supplies the hover lift and the press-down on click.
+        // The press is small (0.5px / 0.5%) on purpose - enough to feel
+        // physical, not enough to look like the layout shifted.
+        'interactive select-none',
         'disabled:opacity-55 disabled:cursor-not-allowed disabled:shadow-none',
         variantStyles[variant],
         sizeStyles[size],

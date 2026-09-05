@@ -96,7 +96,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
-        className="fixed inset-0 bg-ink-900/40 backdrop-blur-[1px]"
+        className="fixed inset-0 bg-ink-900/40 backdrop-blur-[1px] animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -111,7 +111,10 @@ export function Modal({
           'relative w-full bg-white shadow-overlay',
           // Full-width sheet on phones, centred card from `sm` up: a 400px-wide
           // dialog floating in the middle of a phone screen wastes the space
-          // where the thumb actually is.
+          // where the thumb actually is. The entrance matches that shape - it
+          // rises from the bottom edge on mobile and scales in on desktop, so
+          // in both cases it appears to come from where it visually lives.
+          'animate-sheet-up sm:animate-scale-in',
           'rounded-t-2xl sm:rounded-card',
           'max-h-[90vh] overflow-y-auto',
           size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-lg',
