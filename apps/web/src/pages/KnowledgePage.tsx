@@ -22,6 +22,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { Modal } from '../components/ui/Modal';
 import { getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
+import { pluralize } from '../lib/plural';
 
 export function KnowledgePage() {
   const user = useAuthStore((s) => s.user);
@@ -59,7 +60,7 @@ export function KnowledgePage() {
           </p>
         </div>
         {summary && summary.itemCount > 0 && (
-          <Badge variant="info">{summary.itemCount} answers</Badge>
+          <Badge variant="info">{pluralize(summary.itemCount, 'answer')}</Badge>
         )}
       </header>
 
