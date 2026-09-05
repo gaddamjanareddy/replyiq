@@ -11,6 +11,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { BusinessModule } from './modules/business/business.module.js';
 import { DomainModule } from './modules/domain/domain.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module.js';
 import { DatabaseModule } from './shared/database/database.module.js';
 import { AuditModule } from './infrastructure/audit/audit.module.js';
 
@@ -65,6 +66,7 @@ import { AuditModule } from './infrastructure/audit/audit.module.js';
     BusinessModule,
     DomainModule,
     OnboardingModule,
+    KnowledgeModule,
   ],
 })
 export class AppModule {}

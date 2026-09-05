@@ -69,6 +69,30 @@ enum VerificationMethod {
   DEV_BYPASS
 }
 
+/// Where a piece of knowledge came from.
+///
+/// SITE_PAGE is the differentiator: because the business proved it controls the
+/// domain, we are entitled to read that site and build the knowledge base
+/// before the owner has done anything. Every competitor's onboarding starts
+/// with "now upload some documents", which is where trials die.
+enum KnowledgeSourceType {
+  SITE_PAGE
+  FAQ
+  DOCUMENT
+}
+
+enum KnowledgeSourceStatus {
+  /// Queued; the crawl has not reached it yet.
+  PENDING
+  /// Being fetched right now.
+  FETCHING
+  /// Usable.
+  READY
+  /// Fetch or extraction failed. `failureReason` says why, in words the owner
+  /// can act on.
+  FAILED
+}
+
 // ──────────────────────────────────────────────
 // Models
 // ──────────────────────────────────────────────
@@ -124,6 +148,7 @@ model Business {
 
   organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   domains           BusinessDomain[]
+  knowledgeSources  KnowledgeSource[]
   onboardingProgress OnboardingProgress?
 
   @@index([organizationId])
@@ -209,6 +234,74 @@ model AuditLog {
   @@index([businessId, createdAt])
   @@index([event, createdAt])
   @@map("audit_logs")
+}
+
+/// A place knowledge came from: one page of the verified site, or the owner
+/// writing an answer by hand.
+model KnowledgeSource {
+  id            String                @id @default(uuid()) @db.Uuid
+  businessId    String                @db.Uuid
+
+  /// Which verified domain this was read from. Null for hand-written FAQs.
+  /// Kept so that removing a domain can archive what it taught us.
+  domainId      String?               @db.Uuid
+
+  type          KnowledgeSourceType
+  status        KnowledgeSourceStatus @default(PENDING)
+
+  /// Absolute URL for SITE_PAGE. Null for FAQ.
+  url           String?               @db.VarChar(2048)
+  /// Page title, or the owner's label for a hand-written group.
+  title         String?               @db.VarChar(500)
+
+  lastFetchedAt DateTime?
+  /// Owner-facing reason, never a raw fetch error (same rule as verification).
+  failureReason String?               @db.VarChar(200)
+
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  deletedAt     DateTime?
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  items    KnowledgeItem[]
+
+  @@index([businessId, status, deletedAt])
+  @@index([businessId, type])
+  /// One row per URL per business: a re-crawl updates rather than duplicating.
+  @@unique([businessId, url])
+  @@map("knowledge_sources")
+}
+
+/// One answerable unit. For a FAQ that is a question and its answer; for a page
+/// it is a section heading and the text beneath it.
+model KnowledgeItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Denormalised from the source so every tenant-scoped query and the
+  /// full-text index can filter without a join.
+  businessId String   @db.Uuid
+  sourceId   String   @db.Uuid
+
+  /// The question, or the section heading. Null for an untitled chunk.
+  question   String?  @db.VarChar(500)
+  content    String   @db.Text
+
+  /// True once the owner has changed it. A re-crawl must never overwrite a
+  /// human correction - that would silently undo their work and is the fastest
+  /// way to lose their trust in the whole feature.
+  isEdited   Boolean  @default(false)
+
+  /// Order within the source, so a page reads top to bottom.
+  position   Int      @default(0)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  source KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([businessId, deletedAt])
+  @@index([sourceId, position])
+  @@map("knowledge_items")
 }
 
 model Session {

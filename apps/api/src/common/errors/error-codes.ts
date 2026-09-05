@@ -64,6 +64,13 @@ export enum ErrorCode {
    * the action is now confirmable rather than blocked). Never emitted. */
   DOMAIN_LAST_VERIFIED = 'DOMAIN_LAST_VERIFIED',
 
+  // Knowledge
+  KNOWLEDGE_NOT_FOUND = 'KNOWLEDGE_NOT_FOUND',
+  /** Nothing verified yet, so there is no site we are entitled to read. */
+  KNOWLEDGE_NO_VERIFIED_DOMAIN = 'KNOWLEDGE_NO_VERIFIED_DOMAIN',
+  /** Only a reserved test domain is verified - there is no real site behind it. */
+  KNOWLEDGE_SANDBOX_DOMAIN = 'KNOWLEDGE_SANDBOX_DOMAIN',
+
   // Onboarding
   ONBOARDING_STEP_OUT_OF_ORDER = 'ONBOARDING_STEP_OUT_OF_ORDER',
   ONBOARDING_ALREADY_COMPLETED = 'ONBOARDING_ALREADY_COMPLETED',

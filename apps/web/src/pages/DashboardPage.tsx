@@ -123,7 +123,8 @@ export function DashboardPage() {
             <NextStep
               done={false}
               title="Teach it about your business"
-              description="Services, hours, and the questions people always ask. Coming soon."
+              description="Let us read your website, or write the answers yourself."
+              to="/dashboard/knowledge"
             />
             <NextStep
               done={false}

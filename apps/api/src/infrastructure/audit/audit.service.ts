@@ -18,6 +18,9 @@ export const AuditEvent = {
    *  auditable on its own, per FR-TEST-12. */
   DOMAIN_DEV_BYPASS_USED: 'domain.dev_bypass_used',
   ONBOARDING_COMPLETED: 'onboarding.completed',
+  /** The owner asked us to read their verified website. Recorded because it is
+   *  an outbound crawl performed on their behalf, against their own property. */
+  KNOWLEDGE_INGESTION_STARTED: 'knowledge.ingestion_started',
 } as const;
 
 export type AuditEventName = (typeof AuditEvent)[keyof typeof AuditEvent];

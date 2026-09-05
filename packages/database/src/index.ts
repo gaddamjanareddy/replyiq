@@ -8,6 +8,8 @@ export type {
   Session,
   OnboardingProgress,
   AuditLog,
+  KnowledgeSource,
+  KnowledgeItem,
   OrganizationStatus,
   BusinessStatus,
   UserRole,
@@ -15,4 +17,6 @@ export type {
   BusinessDomainStatus,
   OnboardingStatus,
   VerificationMethod,
+  KnowledgeSourceType,
+  KnowledgeSourceStatus,
 } from '@prisma/client';

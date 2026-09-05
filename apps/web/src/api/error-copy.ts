@@ -157,6 +157,30 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
     tone: 'warning',
   },
 
+  // ── Knowledge ───────────────────────────────────────────────────────────
+  KNOWLEDGE_NOT_FOUND: {
+    title: "We couldn't find that answer.",
+    detail: 'It may have been removed already.',
+    retryable: false,
+    tone: 'error',
+  },
+  KNOWLEDGE_NO_VERIFIED_DOMAIN: {
+    title: 'Verify your website first.',
+    detail:
+      "Once you've proved the website is yours, we can read it and set up your receptionist automatically.",
+    action: 'Verify a website',
+    retryable: false,
+    tone: 'warning',
+  },
+  KNOWLEDGE_SANDBOX_DOMAIN: {
+    title: "There's no real website to read.",
+    detail:
+      "Test addresses aren't real sites. Add and verify your real website, and we'll read it for you.",
+    action: 'Add your real website',
+    retryable: false,
+    tone: 'info',
+  },
+
   // ── Onboarding ──────────────────────────────────────────────────────────
   ONBOARDING_STEP_OUT_OF_ORDER: {
     title: "Let's finish the step before this one first.",

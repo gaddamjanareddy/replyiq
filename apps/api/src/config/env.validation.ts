@@ -35,6 +35,12 @@ const envSchema = z.object({
   /** Test-only fixture host for the website-verification fetch. Ignored unless
    *  NODE_ENV === 'test'. */
   DOMAIN_VERIFICATION_FETCH_HOST_OVERRIDE: z.string().optional(),
+
+  // --- Knowledge ingestion -------------------------------------------------
+  /** One ingest request fans out into a dozen outbound fetches against a third
+   *  party's server, so both abuse and politeness argue for a tight limit. */
+  KNOWLEDGE_INGEST_TTL: z.string().default('3600'),
+  KNOWLEDGE_INGEST_MAX: z.string().default('5'),
 });
 
 export type Environment = z.infer<typeof envSchema>;

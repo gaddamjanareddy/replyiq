@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { DomainsPage } from './pages/DomainsPage';
+import { KnowledgePage } from './pages/KnowledgePage';
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/dashboard/settings" element={<BusinessSettingsPage />} />
           <Route path="/dashboard/domains" element={<DomainsPage />} />
+          <Route path="/dashboard/knowledge" element={<KnowledgePage />} />
         </Route>
       </Route>
 
