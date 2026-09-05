@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+﻿import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
 import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
@@ -13,6 +13,7 @@ import { SessionService } from '../../infrastructure/security/session/session.se
 import type { JwtPayload } from '../../common/types/jwt-payload.interface.js';
 import type { LoginDto } from './dto/login.dto.js';
 import type { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { ErrorCode, codedUnauthorized } from '../../common/errors/error-codes.js';
 
 export interface LoginResponse {
   success: boolean;
@@ -23,6 +24,8 @@ export interface LoginResponse {
       name: string;
       email: string;
       role: UserRole;
+      organizationId: string;
+      businessId: string;
     };
     accessToken: string;
     refreshToken: string;
@@ -38,9 +41,31 @@ export interface RefreshResponse {
       name: string;
       email: string;
       role: UserRole;
+      organizationId: string;
+      businessId: string;
     };
     accessToken: string;
     refreshToken: string;
+  };
+}
+
+export interface LogoutResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface CurrentUserResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      organizationId: string;
+      businessId: string;
+    };
   };
 }
 
@@ -54,11 +79,14 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(dto: LoginDto): Promise<LoginResponse> {
+  async login(
+    dto: LoginDto,
+    meta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<LoginResponse> {
     const user = await this.findUserByEmail(dto.email);
 
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw codedUnauthorized(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid email or password');
     }
 
     const isPasswordValid = await this.passwordService.verify(
@@ -67,10 +95,10 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw codedUnauthorized(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid email or password');
     }
 
-    return this.createSession(user);
+    return this.createSession(user, meta);
   }
 
   async refresh(dto: RefreshTokenDto): Promise<RefreshResponse> {
@@ -78,21 +106,21 @@ export class AuthService {
     try {
       payload = await this.tokenService.verifyRefreshToken(dto.refreshToken);
     } catch {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw codedUnauthorized(ErrorCode.AUTH_REFRESH_INVALID, 'Invalid or expired refresh token');
     }
 
     const session = await this.sessionService.findSessionById(payload.sessionId);
 
     if (!session) {
-      throw new UnauthorizedException('Session not found');
+      throw codedUnauthorized(ErrorCode.AUTH_REFRESH_INVALID, 'Invalid or expired refresh token');
     }
 
     if (session.revokedAt) {
-      throw new UnauthorizedException('Session has been revoked');
+      throw codedUnauthorized(ErrorCode.AUTH_REFRESH_INVALID, 'Invalid or expired refresh token');
     }
 
     if (session.expiresAt < new Date()) {
-      throw new UnauthorizedException('Session has expired');
+      throw codedUnauthorized(ErrorCode.AUTH_REFRESH_INVALID, 'Invalid or expired refresh token');
     }
 
     const isValid = await this.passwordService.verify(
@@ -101,13 +129,13 @@ export class AuthService {
     );
 
     if (!isValid) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw codedUnauthorized(ErrorCode.AUTH_REFRESH_INVALID, 'Invalid refresh token');
     }
 
     const user = await this.findUserById(payload.sub);
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw codedUnauthorized(ErrorCode.AUTH_REFRESH_INVALID, 'Invalid or expired refresh token');
     }
 
     const accessTokenPayload: JwtPayload = {
@@ -132,6 +160,10 @@ export class AuthService {
 
     await this.sessionService.updateLastUsed(session.id);
 
+    const business = await this.prisma.business.findFirst({
+      where: { organizationId: user.organizationId },
+    });
+
     return {
       success: true,
       message: 'Token refreshed successfully',
@@ -141,9 +173,57 @@ export class AuthService {
           name: user.name,
           email: user.email,
           role: user.role,
+          organizationId: user.organizationId,
+          businessId: business?.id ?? '',
         },
         accessToken,
         refreshToken,
+      },
+    };
+  }
+
+  async logout(sessionId: string): Promise<LogoutResponse> {
+    const session = await this.sessionService.findSessionById(sessionId);
+
+    if (!session) {
+      throw codedUnauthorized(ErrorCode.AUTH_UNAUTHENTICATED, 'Session not found');
+    }
+
+    if (session.revokedAt) {
+      throw codedUnauthorized(ErrorCode.AUTH_UNAUTHENTICATED, 'Session already revoked');
+    }
+
+    await this.sessionService.revokeSession(sessionId);
+
+    return {
+      success: true,
+      message: 'Logged out successfully',
+    };
+  }
+
+  async getCurrentUser(payload: JwtPayload): Promise<CurrentUserResponse> {
+    const user = await this.findUserById(payload.sub);
+
+    if (!user || user.deletedAt !== null) {
+      throw new UnauthorizedException();
+    }
+
+    const business = await this.prisma.business.findFirst({
+      where: { organizationId: user.organizationId },
+    });
+
+    return {
+      success: true,
+      message: 'Current user retrieved successfully',
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          businessId: business?.id ?? '',
+        },
       },
     };
   }
@@ -160,7 +240,10 @@ export class AuthService {
     });
   }
 
-  private async createSession(user: User): Promise<LoginResponse> {
+  private async createSession(
+    user: User,
+    meta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<LoginResponse> {
     const sessionId = this.sessionService.generateSessionId();
 
     const payload: JwtPayload = {
@@ -184,7 +267,12 @@ export class AuthService {
       user.id,
       refreshTokenHash,
       expiresAt,
+      meta,
     );
+
+    const business = await this.prisma.business.findFirst({
+      where: { organizationId: user.organizationId },
+    });
 
     return {
       success: true,
@@ -195,6 +283,8 @@ export class AuthService {
           name: user.name,
           email: user.email,
           role: user.role,
+          organizationId: user.organizationId,
+          businessId: business?.id ?? '',
         },
         accessToken,
         refreshToken,

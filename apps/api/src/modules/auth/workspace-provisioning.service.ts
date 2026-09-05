@@ -1,10 +1,10 @@
-import { Injectable, ConflictException, Inject } from '@nestjs/common';
+﻿import { Injectable, Inject } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
 import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
 import { PrismaClient } from '@replyiq/database';
 import type { Organization, Business, User } from '@replyiq/database';
-import type { UserRole } from '@replyiq/database';
+import type { UserRole, OnboardingStatus } from '@replyiq/database';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
 import { PasswordService } from '../../common/security/password.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for emitDecoratorMetadata DI
@@ -13,12 +13,25 @@ import { TokenService } from '../../common/security/token.service.js';
 import { SessionService } from '../../infrastructure/security/session/session.service.js';
 import type { JwtPayload } from '../../common/types/jwt-payload.interface.js';
 import type { RegisterWorkspaceDto } from './dto/register-workspace.dto.js';
+import { ErrorCode, codedConflict } from '../../common/errors/error-codes.js';
 
 type TransactionClient = Parameters<
   Parameters<PrismaClient['$transaction']>[0]
 >[0];
 
+/**
+ * Registration now uses the same `{ success, message, data }` envelope as every
+ * other endpoint (D-03R). It previously returned a bare object, which forced
+ * the client to special-case exactly one response shape - a permanent papercut
+ * that every new client would have to rediscover. Both sides changed together.
+ */
 export interface RegisterWorkspaceResponse {
+  success: boolean;
+  message: string;
+  data: RegisterWorkspaceData;
+}
+
+export interface RegisterWorkspaceData {
   session: {
     accessToken: string;
     refreshToken: string;
@@ -50,7 +63,10 @@ export class WorkspaceProvisioningService {
     private readonly configService: ConfigService,
   ) {}
 
-  async register(dto: RegisterWorkspaceDto): Promise<RegisterWorkspaceResponse> {
+  async register(
+    dto: RegisterWorkspaceDto,
+    meta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<RegisterWorkspaceResponse> {
     const passwordHash = await this.passwordService.hash(dto.password);
     const normalizedName = this.normalizeName(dto.businessName);
 
@@ -65,11 +81,11 @@ export class WorkspaceProvisioningService {
           dto.email,
           passwordHash,
         );
-        return this.createSession(user, organization, business);
+        return this.createSession(tx, user, organization, business, meta);
       });
     } catch (error: unknown) {
       if (this.isPrismaUniqueConstraintError(error)) {
-        throw new ConflictException('Email already in use');
+        throw codedConflict(ErrorCode.AUTH_EMAIL_TAKEN, 'Email already in use');
       }
       throw error;
     }
@@ -100,9 +116,19 @@ export class WorkspaceProvisioningService {
     organizationId: string,
     name: string,
   ): Promise<Business> {
-    return tx.business.create({
-      data: { organizationId, name },
+    const business = await tx.business.create({
+      data: {
+        organizationId,
+        name,
+        onboardingStatus: 'NOT_STARTED' as OnboardingStatus,
+      },
     });
+
+    await tx.onboardingProgress.create({
+      data: { businessId: business.id },
+    });
+
+    return business;
   }
 
   private async createOwner(
@@ -124,9 +150,11 @@ export class WorkspaceProvisioningService {
   }
 
   private async createSession(
+    tx: TransactionClient,
     user: User,
     organization: Organization,
     business: Business,
+    meta?: { ipAddress?: string; userAgent?: string },
   ): Promise<RegisterWorkspaceResponse> {
     const sessionId = this.sessionService.generateSessionId();
 
@@ -146,20 +174,28 @@ export class WorkspaceProvisioningService {
     const refreshTokenHash = await this.passwordService.hash(refreshToken);
     const expiresAt = this.getRefreshTokenExpiresAt();
 
-    await this.sessionService.createSession(
-      sessionId,
-      user.id,
-      refreshTokenHash,
-      expiresAt,
-    );
+    await tx.session.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        refreshTokenHash,
+        expiresAt,
+        ipAddress: meta?.ipAddress,
+        userAgent: meta?.userAgent,
+      },
+    });
 
     const expiresIn = this.getAccessTokenExpiresInSeconds();
 
     return {
-      session: { accessToken, refreshToken, expiresIn },
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-      business: { id: business.id, name: business.name },
-      organization: { id: organization.id, name: organization.name },
+      success: true,
+      message: 'Workspace created successfully',
+      data: {
+        session: { accessToken, refreshToken, expiresIn },
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        business: { id: business.id, name: business.name },
+        organization: { id: organization.id, name: organization.name },
+      },
     };
   }
 

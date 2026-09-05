@@ -58,4 +58,11 @@ export class SessionService {
       data: { lastUsedAt: new Date() },
     });
   }
+
+  async revokeSession(sessionId: string): Promise<void> {
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+  }
 }

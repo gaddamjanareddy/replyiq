@@ -42,6 +42,33 @@ enum BusinessDomainStatus {
   DISABLED
 }
 
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DOMAIN_PENDING
+  COMPLETED
+}
+
+/// How ownership of a BusinessDomain was proven.
+///
+/// DNS_TXT / HTML_META are the two live methods: both require a real network
+/// check against infrastructure only the domain's operator controls.
+///
+/// SANDBOX is Test Mode. It performs no network check, and is accepted ONLY for
+/// hostnames in IANA-reserved namespaces that nobody can register (see
+/// common/security/sandbox-domains.ts). It is available in production because
+/// it grants no authority over any real name.
+///
+/// DEV_BYPASS is a non-production-only affordance for CI, gated at process boot
+/// (see config/verification-methods.ts). It is not a member of the accepted
+/// request enum unless the boot gate opened.
+enum VerificationMethod {
+  DNS_TXT
+  HTML_META
+  SANDBOX
+  DEV_BYPASS
+}
+
 // ──────────────────────────────────────────────
 // Models
 // ──────────────────────────────────────────────
@@ -83,41 +110,105 @@ model User {
 }
 
 model Business {
-  id             String         @id @default(uuid()) @db.Uuid
-  organizationId String         @db.Uuid
-  name           String         @db.VarChar(200)
-  industry       String?        @db.VarChar(100)
-  status         BusinessStatus @default(DRAFT)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @db.Uuid
+  name              String            @db.VarChar(200)
+  industry          String?           @db.VarChar(100)
+  description       String?           @db.Text
+  websiteUrl        String?           @db.VarChar(500)
+  onboardingStatus  OnboardingStatus  @default(NOT_STARTED)
+  status            BusinessStatus    @default(DRAFT)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  domains      BusinessDomain[]
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  domains           BusinessDomain[]
+  onboardingProgress OnboardingProgress?
 
   @@index([organizationId])
   @@index([status])
+  @@index([onboardingStatus])
   @@map("businesses")
 }
 
 model BusinessDomain {
-  id                String               @id @default(uuid()) @db.Uuid
-  businessId        String               @db.Uuid
-  domain            String               @db.VarChar(255)
-  isPrimary         Boolean              @default(false)
-  status            BusinessDomainStatus @default(PENDING)
-  verifiedAt        DateTime?
-  verificationToken String?              @db.VarChar(255)
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  deletedAt         DateTime?
+  id                 String               @id @default(uuid()) @db.Uuid
+  businessId         String               @db.Uuid
+  domain             String               @db.VarChar(255)
+  isPrimary          Boolean              @default(false)
+  status             BusinessDomainStatus @default(PENDING)
+  verifiedAt         DateTime?
+  verificationToken  String?              @db.VarChar(255)
+  verificationMethod VerificationMethod?
+
+  /// True when `domain` sits in an IANA-reserved namespace that cannot be
+  /// registered by anyone (*.test, *.example, example.com, *.invalid,
+  /// *.localhost, *.local, *.internal) or the deployment's configured sandbox
+  /// suffix. Decided once at creation from the hostname alone and immutable
+  /// thereafter, because domain strings are not editable (FR-DOM-14).
+  ///
+  /// This single flag is the entire Test Mode security boundary:
+  ///   isSandbox = true  -> only SANDBOX verification is accepted
+  ///   isSandbox = false -> only DNS_TXT / HTML_META are accepted
+  /// and the widget layer (M7) MUST refuse to serve live traffic when true.
+  isSandbox          Boolean              @default(false)
+
+  /// Timestamp of the most recent verification attempt, successful or not.
+  /// Powers "last checked" in the UI and rate-limit telemetry.
+  lastCheckedAt      DateTime?
+
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  deletedAt          DateTime?
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
-  @@unique([domain])
+  // D-02: uniqueness is enforced by a hand-maintained PARTIAL unique index
+  // (migration 20260822000000_domain_partial_unique):
+  //   CREATE UNIQUE INDEX business_domains_domain_active_key
+  //     ON business_domains(domain) WHERE "deletedAt" IS NULL;
+  // Prisma DSL cannot express partial indexes, so there is intentionally NO
+  // @@unique([domain]) here. Do not reintroduce it - a full-table unique
+  // index would permanently block re-registration of soft-deleted names.
   @@index([businessId])
   @@index([status])
+  @@index([businessId, status, deletedAt])
   @@map("business_domains")
+}
+
+/// Append-only record of security- and ownership-relevant events.
+///
+/// Written on a best-effort basis: an audit failure is logged but never fails
+/// the user's request, because losing an audit line is preferable to failing a
+/// verification the user legitimately completed. Rows are never updated or
+/// deleted by application code.
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+
+  /// Actor context. Nullable because some events (future: system jobs) have no
+  /// human actor, and because a deleted user must not cascade away the record.
+  organizationId String?  @db.Uuid
+  userId         String?  @db.Uuid
+  businessId     String?  @db.Uuid
+
+  /// Dotted event name, e.g. "domain.verified", "domain.dev_bypass_used".
+  event          String   @db.VarChar(100)
+  resourceType   String?  @db.VarChar(50)
+  resourceId     String?  @db.Uuid
+
+  /// Event-specific detail. Must never contain secrets - notably never the
+  /// verification token.
+  metadata       Json?
+
+  ipAddress      String?  @db.VarChar(45)
+  userAgent      String?  @db.VarChar(512)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([event, createdAt])
+  @@map("audit_logs")
 }
 
 model Session {
@@ -137,4 +228,24 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model OnboardingProgress {
+  id                     String    @id @default(uuid()) @db.Uuid
+  businessId             String    @db.Uuid
+  profileCompleted       Boolean   @default(false)
+  profileCompletedAt     DateTime?
+  firstDomainAdded       Boolean   @default(false)
+  firstDomainAddedAt     DateTime?
+  firstDomainVerified    Boolean   @default(false)
+  firstDomainVerifiedAt  DateTime?
+  onboardingCompleted    Boolean   @default(false)
+  onboardingCompletedAt  DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([businessId])
+  @@map("onboarding_progress")
 }

@@ -1,28 +1,56 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { ValidationPipe } from '@nestjs/common';
+import { HttpStatus, ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import helmet from '@fastify/helmet';
 import compress from '@fastify/compress';
+import cors from '@fastify/cors';
 import { AppModule } from './app.module.js';
+ 
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
+import { assertVerificationBypassNotEnabledInProduction } from './config/verification-methods.js';
 
 async function bootstrap() {
+  // Fail loud, at deploy time, rather than running forever with a weakened
+  // verification path (FR-TEST-10). Checked before anything else starts, so a
+  // misconfigured production deployment never accepts a single request.
+  assertVerificationBypassNotEnabledInProduction();
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ bodyLimit: 100 * 1024 }),
     { bufferLogs: true },
   );
 
   await app.register(helmet);
   await app.register(compress);
 
-  app.enableCors();
+  // Render's blueprint can inject another service's address, but it supplies a
+  // bare hostname ("replyiq-web.onrender.com") while CORS matches full origins.
+  // Normalising here means the deployment config can stay declarative and
+  // self-wiring instead of needing a hand-typed URL that drifts.
+  const corsOrigins = process.env.CORS_ORIGINS ?? 'http://localhost:5173';
+  const allowedOrigins = corsOrigins
+    .split(',')
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0)
+    .map((o) => (/^https?:\/\//.test(o) ? o : `https://${o}`));
+  await app.register(cors, {
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
+    credentials: true,
+  });
+
+  app.useGlobalFilters(new GlobalExceptionFilter(app.get(Logger)));
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      // 422 for field-level validation, per the documented exception mapping.
+      // Business-rule failures that are not field validation (e.g. "complete
+      // the profile step first") remain 400, so the two are distinguishable.
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
     }),
   );
 
@@ -37,4 +65,10 @@ async function bootstrap() {
   logger.log(`Server running on http://localhost:${port}`, 'Bootstrap');
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  // A boot failure must be visible and must stop the process. Without this the
+  // fatal bypass-misconfiguration check above would surface only as an
+  // unhandled rejection, which some runtimes still survive.
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});

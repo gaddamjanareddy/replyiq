@@ -6,9 +6,13 @@ export type {
   Business,
   BusinessDomain,
   Session,
+  OnboardingProgress,
+  AuditLog,
   OrganizationStatus,
   BusinessStatus,
   UserRole,
   UserStatus,
   BusinessDomainStatus,
+  OnboardingStatus,
+  VerificationMethod,
 } from '@prisma/client';
