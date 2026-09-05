@@ -33,6 +33,11 @@ databases:
     databaseName: replyiq
     user: replyiq
     plan: free
+    # Must match the API's region: `connectionString` below is the INTERNAL
+    # connection string, and Render's private networking does not cross
+    # regions. Leaving this unset defaulted it to Oregon while the API was in
+    # Singapore, which would have failed at first connection.
+    region: oregon
     postgresMajorVersion: "17"
 
 services:
@@ -41,8 +46,10 @@ services:
     name: replyiq-api
     runtime: node
     plan: free
-    # Closest region to India. Change freely - it only affects latency.
-    region: singapore
+    # Must match replyiq-db's region (see the note there). Oregon costs ~250ms
+    # from India versus ~60ms from Singapore; move both together when the
+    # latency matters more than the free plan does.
+    region: oregon
 
     buildCommand: >-
       npm install -g pnpm@11.13.0 &&
