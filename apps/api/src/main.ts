@@ -25,6 +25,22 @@ async function bootstrap() {
   await app.register(helmet);
   await app.register(compress);
 
+  /**
+   * NOTE for client authors: do NOT send `Content-Type: application/json` on a
+   * request with no body.
+   *
+   * Fastify rejects that with "Body cannot be empty when content-type is set",
+   * before the route runs - which silently broke domain removal in the web app
+   * until it was found by driving the real UI. The fix belongs in the client
+   * (see apps/web/src/api/client.ts, which only sets the header when there is
+   * a body, with a regression test).
+   *
+   * An attempt to accommodate it server-side by replacing Fastify's JSON parser
+   * was reverted: the Nest adapter registers that parser itself and will not
+   * release it, and overriding global body parsing to smooth over a client bug
+   * is a poor trade for the blast radius.
+   */
+
   // Render's blueprint can inject another service's address, but it supplies a
   // bare hostname ("replyiq-web.onrender.com") while CORS matches full origins.
   // Normalising here means the deployment config can stay declarative and

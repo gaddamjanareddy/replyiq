@@ -1,13 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
-import { ConfigService } from '@nestjs/config';
 import { resolveTxt } from 'node:dns/promises';
-import {
-  DnsResolutionError,
-  SsrfViolationError,
-  assertSafeHop,
-  resolvePinnedAddress,
-} from '../../common/security/ssrf-guard.js';
+import { DnsResolutionError, SsrfViolationError } from '../../common/security/ssrf-guard.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value import required for DI metadata
+import { SafeHttpService } from '../../common/security/safe-http.service.js';
+import { HttpStatusError } from '../../common/security/safe-http.service.js';
 
 /**
  * The three outcomes of a live verification attempt.
@@ -53,15 +49,6 @@ interface SchemeSession {
   preferred: Scheme | null;
 }
 
-/** The server responded, but not with a usable status. Distinguished from a
- *  connection failure because it proves the scheme works. */
-class HttpStatusError extends Error {
-  constructor(public readonly status: number) {
-    super(`unexpected status ${status}`);
-    this.name = 'HttpStatusError';
-  }
-}
-
 export const META_TAG_NAME = 'replyiq-verification';
 export const WELL_KNOWN_PATH = '/.well-known/replyiq-verification.txt';
 export const LEGACY_FILE_PATH = '/replyiq-verification.html';
@@ -70,7 +57,7 @@ export const LEGACY_FILE_PATH = '/replyiq-verification.html';
 export class DomainVerificationService {
   private readonly logger = new Logger(DomainVerificationService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly http: SafeHttpService) {}
 
   // ─────────────────────────────────────────────────────────────────────────
   // Token and instruction values
@@ -214,9 +201,11 @@ export class DomainVerificationService {
   }
 
   /**
-   * One guarded fetch. Returns the body, or null for any reason the caller
-   * should treat as "this placement is not here" - including policy refusals,
-   * which are logged but never distinguished to the caller.
+   * One guarded fetch, delegated to SafeHttpService.
+   *
+   * Returns the body, or null for any reason the caller should treat as "this
+   * placement is not here" - including policy refusals, which are logged but
+   * never distinguished to the caller.
    */
   private async tryFetch(
     domain: string,
@@ -224,21 +213,21 @@ export class DomainVerificationService {
     controller: AbortController,
     session: SchemeSession,
   ): Promise<string | null> {
-    // HTTPS first. The original implementation fetched http:// only, which is a
-    // downgrade by default: it invites a network attacker to answer for an
-    // otherwise HTTPS-only site, and fails outright on sites that reject
-    // plaintext. HTTP remains as a fallback for sites that have no TLS at all.
+    // HTTPS first. Fetching http:// only is a downgrade by default: it invites
+    // a network attacker to answer for an otherwise HTTPS-only site, and fails
+    // outright on sites that reject plaintext.
     const schemes: readonly Scheme[] =
       session.preferred !== null ? [session.preferred] : ['https', 'http'];
 
     for (const scheme of schemes) {
       try {
-        const body = await this.fetchWithSsrfProtection(
-          new URL(`${scheme}://${domain}${path}`),
-          controller,
-        );
+        const result = await this.http.fetchText(new URL(`${scheme}://${domain}${path}`), {
+          signal: controller.signal,
+          maxBytes: MAX_BODY_BYTES,
+          maxRedirects: MAX_REDIRECTS,
+        });
         session.preferred = scheme;
-        return body;
+        return result.body;
       } catch (error) {
         if (error instanceof SsrfViolationError) {
           // Policy refusal. Never retried over another scheme, and never
@@ -254,14 +243,13 @@ export class DomainVerificationService {
         }
         if (error instanceof HttpStatusError) {
           // The server answered, so this scheme works - it just does not host
-          // this particular path. Remember the scheme so the remaining
-          // placements are not probed over the other one as well.
+          // this particular path. Remember it so the remaining placements are
+          // not probed over the other scheme as well.
           session.preferred = scheme;
           this.logger.debug(`${scheme}://${domain}${path} returned ${error.status}`);
           return null;
         }
         if (controller.signal.aborted) return null; // Budget exhausted.
-        // Connection or TLS failure: fall through and try the next scheme.
         this.logger.debug(
           `${scheme}://${domain}${path} unavailable: ${
             error instanceof Error ? error.message : String(error)
@@ -270,117 +258,6 @@ export class DomainVerificationService {
       }
     }
     return null;
-  }
-
-  /**
-   * Hardened outbound fetch of one URL.
-   *
-   * Per hop: validate scheme/port/host, resolve DNS and require every returned
-   * address to be public, then dial the validated IP directly while sending the
-   * real hostname in the Host header. Because the connection is pinned to an
-   * already-validated address there is no second resolution, and therefore no
-   * DNS-rebinding window. Redirects are followed manually with a hard hop cap
-   * and each target revalidated from scratch, so an open redirect on a public
-   * site cannot be used to reach an internal one. The body is streamed with a
-   * strict size cap.
-   */
-  private async fetchWithSsrfProtection(
-    initialUrl: URL,
-    controller: AbortController,
-  ): Promise<string> {
-    const fixtureOrigin = this.getTestFixtureOrigin();
-
-    let current = initialUrl;
-    for (let hop = 0; ; hop++) {
-      // Runs on every hop regardless of the fixture override, so hostname,
-      // scheme, port and redirect revalidation are exercised for real.
-      const port = assertSafeHop(current);
-      const hostHeader = current.host;
-
-      let dialUrl: URL;
-      if (fixtureOrigin !== null) {
-        // Test-only fixture injection (FR-TEST-13). Integration tests need to
-        // drive the genuine meta parser, fallback ordering, redirect handling
-        // and body cap - which means a real HTTP round trip to a local server.
-        // A loopback address can never survive resolvePinnedAddress (correctly),
-        // so the *dial target* is substituted while everything else stays live.
-        // Gated on NODE_ENV === 'test' AND an explicit variable, and read once
-        // per operation so no request input can reach it.
-        dialUrl = new URL(`${current.pathname}${current.search}`, fixtureOrigin);
-      } else {
-        const pinned = await resolvePinnedAddress(
-          current.hostname.toLowerCase().replace(/\.$/, ''),
-        );
-        dialUrl = new URL(current.toString());
-        dialUrl.hostname = pinned.isIpv6 ? `[${pinned.address}]` : pinned.address;
-        if (dialUrl.port === '') dialUrl.port = String(port);
-      }
-
-      const response: Response = await fetch(dialUrl, {
-        headers: { host: hostHeader, accept: 'text/html,text/plain,*/*' },
-        redirect: 'manual',
-        signal: controller.signal,
-      });
-
-      if ([301, 302, 303, 307, 308].includes(response.status)) {
-        await response.body?.cancel();
-        const location = response.headers.get('location');
-        if (!location || hop >= MAX_REDIRECTS) {
-          throw new Error(`redirect chain exhausted or missing Location at hop ${hop}`);
-        }
-        current = new URL(location, current);
-        continue;
-      }
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new HttpStatusError(response.status);
-      }
-      return await this.readBodyCapped(response);
-    }
-  }
-
-  /**
-   * The local fixture origin, or null.
-   *
-   * Returns null unless `NODE_ENV === 'test'`, so the override is inert in
-   * development and production no matter how the variable is set. The value is
-   * parsed rather than interpolated, so a malformed setting disables the
-   * override instead of producing a surprising dial target.
-   */
-  private getTestFixtureOrigin(): URL | null {
-    if (process.env.NODE_ENV !== 'test') return null;
-    const raw = this.configService.get<string>('DOMAIN_VERIFICATION_FETCH_HOST_OVERRIDE');
-    if (!raw) return null;
-    try {
-      return new URL(raw);
-    } catch {
-      this.logger.warn(`Ignoring malformed DOMAIN_VERIFICATION_FETCH_HOST_OVERRIDE: ${raw}`);
-      return null;
-    }
-  }
-
-  private async readBodyCapped(response: Response): Promise<string> {
-    if (!response.body) return '';
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_BODY_BYTES) {
-        await reader.cancel();
-        throw new Error(`response body exceeds ${MAX_BODY_BYTES} byte limit`);
-      }
-      chunks.push(value);
-    }
-    const merged = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return new TextDecoder().decode(merged);
   }
 }
 

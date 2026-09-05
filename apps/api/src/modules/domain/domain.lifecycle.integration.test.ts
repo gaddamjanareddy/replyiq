@@ -7,6 +7,7 @@ import { OnboardingStep } from '../onboarding/dto/update-onboarding.dto.js';
 import { DomainService } from './domain.service.js';
 import type { ActorContext } from './domain.service.js';
 import { DomainVerificationService } from './domain-verification.service.js';
+import { SafeHttpService } from '../../common/security/safe-http.service.js';
 import { OnboardingService } from '../onboarding/onboarding.service.js';
 import { AuditService, AuditEvent } from '../../infrastructure/audit/audit.service.js';
 import { codedConflict, ErrorCode } from '../../common/errors/error-codes.js';
@@ -110,7 +111,7 @@ async function forceVerified(domainId: string, method: 'DNS_TXT' | 'SANDBOX' = '
 }
 
 beforeAll(() => {
-  const verificationService = new DomainVerificationService(new ConfigService());
+  const verificationService = new DomainVerificationService(new SafeHttpService(new ConfigService()));
   const audit = new AuditService(prisma as PrismaClient);
   domainService = new DomainService(prisma as PrismaClient, verificationService, audit);
   onboardingService = new OnboardingService(prisma as PrismaClient, audit);

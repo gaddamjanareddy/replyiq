@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ConfigService } from '@nestjs/config';
+import { SafeHttpService } from '../../common/security/safe-http.service.js';
 import {
   DomainVerificationService,
   VerificationOutcome,
@@ -65,7 +66,9 @@ beforeAll(async () => {
   const config = new ConfigService({
     DOMAIN_VERIFICATION_FETCH_HOST_OVERRIDE: `http://127.0.0.1:${port}`,
   });
-  service = new DomainVerificationService(config);
+  // The real SafeHttpService, not a stub: the whole point of this suite is to
+  // exercise the genuine guarded-fetch path over a real HTTP round trip.
+  service = new DomainVerificationService(new SafeHttpService(config));
 });
 
 afterAll(async () => {
