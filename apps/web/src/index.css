@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/**
+ * ReplyIQ design tokens.
+ *
+ * Tailwind v4 reads @theme and generates utilities from it, so these names are
+ * usable as `bg-brand-600`, `text-ink-500`, `shadow-card` and so on. Defining
+ * them here rather than sprinkling raw palette classes through components means
+ * a brand change is one file, and it makes "which blue?" a question with one
+ * answer.
+ */
+@theme {
+  /* Brand. A slightly deeper, less saturated blue than Tailwind's default -
+     it holds up better against white at small text sizes. */
+  --color-brand-50: oklch(0.971 0.014 254.6);
+  --color-brand-100: oklch(0.932 0.032 255.6);
+  --color-brand-200: oklch(0.882 0.059 254.1);
+  --color-brand-300: oklch(0.809 0.105 251.8);
+  --color-brand-400: oklch(0.707 0.165 254.6);
+  --color-brand-500: oklch(0.623 0.214 259.8);
+  --color-brand-600: oklch(0.546 0.245 262.9);
+  --color-brand-700: oklch(0.488 0.243 264.4);
+  --color-brand-800: oklch(0.424 0.199 265.6);
+  --color-brand-900: oklch(0.379 0.146 265.5);
+
+  /* Neutral text and surfaces. "ink" reads better than "gray" at call sites:
+     text-ink-500 says what it is for. */
+  --color-ink-50: oklch(0.985 0.002 247.8);
+  --color-ink-100: oklch(0.967 0.003 264.5);
+  --color-ink-200: oklch(0.928 0.006 264.5);
+  --color-ink-300: oklch(0.872 0.01 258.3);
+  --color-ink-400: oklch(0.707 0.022 261.3);
+  --color-ink-500: oklch(0.551 0.027 264.4);
+  --color-ink-600: oklch(0.446 0.03 256.8);
+  --color-ink-700: oklch(0.373 0.034 259.7);
+  --color-ink-800: oklch(0.278 0.033 256.8);
+  --color-ink-900: oklch(0.21 0.034 264.7);
+
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06);
+  --shadow-raised: 0 4px 8px -2px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
+  --shadow-overlay: 0 20px 24px -4px rgb(16 24 40 / 0.10), 0 8px 8px -4px rgb(16 24 40 / 0.04);
+
+  --radius-card: 0.75rem;
+}
+
+@layer base {
+  html {
+    /* Anchor links and programmatic scrolls ease instead of jumping - except
+       for anyone who has asked their system not to animate. */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /**
+   * One focus treatment for the whole app, applied only for keyboard users.
+   * Visible focus is not decoration: without it, a keyboard user cannot tell
+   * where they are (NFR-USE-07). `:focus-visible` keeps it off mouse clicks so
+   * it never reads as a stuck highlight.
+   */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+
+  /* Monospace values (tokens, DNS records) must be unambiguous: a user is
+     going to compare these character by character. */
+  code, kbd, samp, pre {
+    font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+    font-variant-ligatures: none;
+  }
+}
+
+@layer utilities {
+  /**
+   * Visible only to screen readers. Used for live-region status announcements
+   * where a visual banner already conveys the same thing to sighted users.
+   */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+
+/**
+ * Respect the OS "reduce motion" setting everywhere at once. Vestibular
+ * disorders make spinners and slides genuinely unpleasant, and this is one
+ * declaration instead of a decision in every component.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
