@@ -36,3 +36,6 @@ pnpm-debug.log*
 # Temp
 tmp/
 temp/
+
+# Local database dumps (see scripts/backup-db.sh) - never commit these.
+backups/

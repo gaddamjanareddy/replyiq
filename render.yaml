@@ -1,0 +1,153 @@
+# ReplyIQ — Render Blueprint
+#
+# Provisions the whole product: PostgreSQL, the NestJS API, and the React
+# dashboard as a static site. Point Render at this file (New → Blueprint) and it
+# creates all three and wires them to each other.
+#
+# ── Why the native Node runtime rather than Docker ────────────────────────────
+# A Dockerfile for a pnpm workspace has to reproduce the symlinked node_modules
+# layout and the generated Prisma client across build stages, which is a real
+# source of "works locally, fails in the image" problems. Render's Node runtime
+# builds from the repo as-is and caches dependencies between deploys, so for a
+# first deployment it is both simpler and more reliable. A Dockerfile remains a
+# Milestone 8 item for when reproducible local images matter.
+#
+# ── Free plan, and what it costs you ──────────────────────────────────────────
+#   * The web service sleeps after ~15 minutes idle and cold-starts in ~50s.
+#   * Free PostgreSQL EXPIRES 30 DAYS after creation. There is then a 14-day
+#     grace period in which upgrading to a paid plan KEEPS your data; after that
+#     Render deletes the database and everything in it.
+#   * Free databases have NO BACKUPS of any kind. Run scripts/backup-db.sh
+#     regularly, or upgrade before you have anything you would miss.
+# Upgrading later is a plan change in the dashboard - no code or config change.
+
+databases:
+  - name: replyiq-db
+    databaseName: replyiq
+    user: replyiq
+    plan: free
+    postgresMajorVersion: "17"
+
+services:
+  # ── API ─────────────────────────────────────────────────────────────────────
+  - type: web
+    name: replyiq-api
+    runtime: node
+    plan: free
+    # Closest region to India. Change freely - it only affects latency.
+    region: singapore
+
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @replyiq/database exec prisma generate &&
+      npx turbo build --filter=@replyiq/api...
+
+    # Migrations run at start rather than in a preDeploy hook, because preDeploy
+    # is a paid-plan feature. `migrate deploy` is idempotent and forward-only, so
+    # running it on every cold start is safe: it applies nothing when the schema
+    # is already current, and it never resets or drops anything.
+    startCommand: >-
+      pnpm --filter @replyiq/database exec prisma migrate deploy &&
+      node apps/api/dist/src/main.js
+
+    healthCheckPath: /api/v1/health
+
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: replyiq-db
+          property: connectionString
+
+      # Generated once by Render and never shown in this file or in git.
+      # Rotating them invalidates every existing session, which is the intended
+      # behaviour if one is ever suspected of leaking.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL
+        value: 30d
+
+      # Render supplies a bare hostname here; main.ts prefixes https:// so the
+      # two services wire themselves together with no hand-typed URL to drift.
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: replyiq-web
+          property: host
+
+      - key: RATE_LIMIT_TTL
+        value: "60"
+      - key: RATE_LIMIT_MAX
+        value: "10"
+      - key: DOMAIN_RATE_LIMIT_TTL
+        value: "3600"
+      - key: DOMAIN_ADD_RATE_LIMIT_MAX
+        value: "10"
+      - key: DOMAIN_VERIFY_RATE_LIMIT_MAX
+        value: "20"
+
+      # Left empty on purpose: only IANA-reserved test namespaces are
+      # sandbox-eligible unless an operator adds a namespace they control.
+      - key: SANDBOX_DOMAIN_SUFFIX
+        value: ""
+
+      # MUST stay false. The process refuses to boot if this is "true" while
+      # NODE_ENV=production (FR-TEST-10), so a mistake here fails the deploy
+      # loudly rather than quietly weakening domain verification forever.
+      - key: ALLOW_DEV_VERIFICATION_BYPASS
+        value: "false"
+
+  # ── Dashboard ───────────────────────────────────────────────────────────────
+  - type: web
+    name: replyiq-web
+    runtime: static
+
+    # VITE_API_URL is baked in at build time, so it is composed here from the
+    # API's hostname rather than duplicated as a literal.
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      VITE_API_URL="https://$API_HOST" npx turbo build --filter=@replyiq/web...
+
+    staticPublishPath: apps/web/dist
+
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: API_HOST
+        fromService:
+          type: web
+          name: replyiq-api
+          property: host
+
+    routes:
+      # Single-page app: every unmatched path must return index.html, or a
+      # refresh on /dashboard/domains 404s instead of loading the app.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    headers:
+      # The API sets its own headers via Helmet; a static host needs its own.
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
