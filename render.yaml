@@ -54,8 +54,13 @@ services:
     # is a paid-plan feature. `migrate deploy` is idempotent and forward-only, so
     # running it on every cold start is safe: it applies nothing when the schema
     # is already current, and it never resets or drops anything.
+    #
+    # Deliberately uses npx from the database package rather than pnpm: pnpm is
+    # installed globally during BUILD, and Render makes no promise that global
+    # binaries survive into the runtime environment. A start command that cannot
+    # find pnpm fails on boot, and the service simply never comes up.
     startCommand: >-
-      pnpm --filter @replyiq/database exec prisma migrate deploy &&
+      (cd packages/database && npx prisma migrate deploy) &&
       node apps/api/dist/src/main.js
 
     healthCheckPath: /api/v1/health
