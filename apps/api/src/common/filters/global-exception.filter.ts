@@ -46,6 +46,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let message: string | string[] = 'Internal server error';
     let code: string | undefined;
+    /** Field path → reasons, present only on validation failures. */
+    let fields: Record<string, string[]> | undefined;
 
     if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
@@ -56,6 +58,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       ) {
         message = (exceptionResponse as { message: string | string[] }).message;
         code = (exceptionResponse as { code?: string }).code;
+        // Forwarded explicitly. This filter rebuilds the body from named
+        // parts rather than spreading the exception, so anything it does not
+        // name is silently dropped - which is what happened to field errors
+        // before they were added here.
+        fields = (exceptionResponse as { fields?: Record<string, string[]> }).fields;
       } else if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       }
@@ -73,6 +80,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       ...(code ? { code } : {}),
       message,
+      ...(fields ? { fields } : {}),
       timestamp: new Date().toISOString(),
     });
   }

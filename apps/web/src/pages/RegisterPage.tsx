@@ -13,6 +13,7 @@ import {
   isPasswordAcceptable,
 } from '../components/auth/PasswordRequirements';
 import { PasswordInput } from '../components/ui/PasswordInput';
+import { getFieldErrors, type FieldErrorMap } from '../api/field-errors';
 
 export function RegisterPage() {
   const [businessName, setBusinessName] = useState('');
@@ -21,6 +22,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [error, setError] = useState<ErrorCopy | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
@@ -30,6 +32,7 @@ export function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     setLoading(true);
 
     try {
@@ -42,7 +45,12 @@ export function RegisterPage() {
 
       const body = await response.json().catch(() => null);
       if (!response.ok) {
-        setError(getErrorCopy(body));
+        const fields = getFieldErrors(body);
+        setFieldErrors(fields);
+        // A banner repeating what is already sitting under each field is
+        // noise. It is kept for failures that belong to no single field, such
+        // as the address already being taken.
+        if (Object.keys(fields).length === 0) setError(getErrorCopy(body));
         return;
       }
 
@@ -82,7 +90,12 @@ export function RegisterPage() {
           label="Business name"
           required
           value={businessName}
-          onChange={(e) => setBusinessName(e.target.value)}
+          maxLength={200}
+          error={fieldErrors.businessName}
+          onChange={(e) => {
+            setBusinessName(e.target.value);
+            setFieldErrors(({ businessName: _drop, ...rest }) => rest);
+          }}
           placeholder="Northgate Plumbing"
           autoComplete="organization"
         />
@@ -90,7 +103,12 @@ export function RegisterPage() {
           label="Your name"
           required
           value={ownerName}
-          onChange={(e) => setOwnerName(e.target.value)}
+          maxLength={150}
+          error={fieldErrors.ownerName}
+          onChange={(e) => {
+            setOwnerName(e.target.value);
+            setFieldErrors(({ ownerName: _drop, ...rest }) => rest);
+          }}
           placeholder="Sam Reeves"
           autoComplete="name"
         />
@@ -99,7 +117,11 @@ export function RegisterPage() {
           type="email"
           required
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          error={fieldErrors.email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setFieldErrors(({ email: _drop, ...rest }) => rest);
+          }}
           placeholder="you@company.com"
           autoComplete="email"
         />
@@ -108,7 +130,11 @@ export function RegisterPage() {
             label="Password"
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            error={fieldErrors.password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setFieldErrors(({ password: _drop, ...rest }) => rest);
+            }}
             onBlur={() => setPasswordTouched(true)}
             placeholder="Choose a strong password"
             autoComplete="new-password"

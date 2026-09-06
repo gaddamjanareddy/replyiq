@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/auth.store';
 import { useBusiness, useUpdateBusiness } from '../hooks/useBusiness';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { getFieldErrors, type FieldErrorMap } from '../api/field-errors';
 import { Card, CardHeader, CardBody, CardFooter } from '../components/ui/Card';
 import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { PageSkeleton } from '../components/ui/Skeleton';
@@ -20,6 +21,23 @@ export function BusinessSettingsPage() {
   const [form, setForm] = useState({ name: '', industry: '', description: '', websiteUrl: '' });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<ErrorCopy | null>(null);
+  // Per-field copy from a 422. Previously the response carried this and the
+  // client discarded it, so a rejected save looked like a button that did
+  // nothing at all.
+  const [fieldErrors, setFieldErrors] = useState<FieldErrorMap>({});
+
+  /** Update one field and clear its error, so the message goes as it is fixed. */
+  const update = (patch: Partial<typeof form>) => {
+    setForm((current) => ({ ...current, ...patch }));
+    setSaved(false);
+    const touched = Object.keys(patch);
+    setFieldErrors((current) => {
+      if (!touched.some((key) => key in current)) return current;
+      const next = { ...current };
+      for (const key of touched) delete next[key];
+      return next;
+    });
+  };
 
   // Load once. Re-syncing on every refetch would overwrite whatever the user
   // is currently typing, which is a genuinely maddening bug to hit.
@@ -40,11 +58,17 @@ export function BusinessSettingsPage() {
     e.preventDefault();
     setError(null);
     setSaved(false);
+    setFieldErrors({});
     try {
       await updateMutation.mutateAsync(form);
       setSaved(true);
     } catch (err) {
-      setError(getErrorCopy(err));
+      const fields = getFieldErrors(err);
+      setFieldErrors(fields);
+      // With messages on the fields themselves, a banner repeating the same
+      // thing at the top is noise. It is kept for failures that belong to no
+      // single field.
+      if (Object.keys(fields).length === 0) setError(getErrorCopy(err));
     }
   };
 
@@ -82,29 +106,33 @@ export function BusinessSettingsPage() {
               label="Business name"
               required
               value={form.name}
-              onChange={(e) => {
-                setForm({ ...form, name: e.target.value });
-                setSaved(false);
-              }}
+              maxLength={200}
+              error={fieldErrors.name}
+              onChange={(e) => update({ name: e.target.value })}
             />
             <Input
               label="What you do"
               placeholder="e.g. Plumbing, dental practice, design agency"
               value={form.industry}
-              onChange={(e) => {
-                setForm({ ...form, industry: e.target.value });
-                setSaved(false);
-              }}
+              // The label invites a description and the column allows 100
+              // characters, which is how someone ends up writing a paragraph
+              // here and being rejected on submit. The cap plus a visible
+              // counter makes the limit apparent while typing instead.
+              maxLength={100}
+              showCount
+              hint="A short label, not a description — there's room for detail below."
+              error={fieldErrors.industry}
+              onChange={(e) => update({ industry: e.target.value })}
             />
             <Input
               label="Anything else worth knowing"
               placeholder="e.g. Family-run since 1998, emergency callouts across Leeds"
               hint="Your receptionist uses this for tone."
               value={form.description}
-              onChange={(e) => {
-                setForm({ ...form, description: e.target.value });
-                setSaved(false);
-              }}
+              maxLength={2000}
+              showCount
+              error={fieldErrors.description}
+              onChange={(e) => update({ description: e.target.value })}
             />
             <Input
               label="Website"
@@ -114,10 +142,9 @@ export function BusinessSettingsPage() {
               // informational and changing it does not touch verification.
               hint="For reference only — verifying a website is done from the Websites page."
               value={form.websiteUrl}
-              onChange={(e) => {
-                setForm({ ...form, websiteUrl: e.target.value });
-                setSaved(false);
-              }}
+              maxLength={500}
+              error={fieldErrors.websiteUrl}
+              onChange={(e) => update({ websiteUrl: e.target.value })}
             />
           </CardBody>
           <CardFooter className="flex justify-end">

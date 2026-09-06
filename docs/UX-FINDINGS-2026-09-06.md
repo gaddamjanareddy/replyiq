@@ -50,7 +50,23 @@ dependency.
 
 ---
 
-## 2. Validation errors never reach the field — **high**
+## 2. ~~Validation errors never reach the field~~ — **DONE (2026-09-06)**
+
+Fixed across the whole chain. The ValidationPipe now emits a `fields` map of
+constraint NAMES (`maxLength`, `isEmail`) — not sentences — so the copy
+contract holds and no backend prose reaches the screen. The filter forwards
+it, the client maps each constraint to reviewed copy, and register and
+business-profile attach it to the input. Errors clear as each field is edited.
+
+Also ordered by severity: a five-character password comes back as
+["matches", "minLength"] in decorator order, so arrival order told the user to
+add a symbol when the real problem was length.
+
+Verified in the browser against the real API. 24 new tests.
+
+Original finding follows.
+
+---
 
 Reported as: *"we are showing we will highlight the field which you entered
 wrong but we not highlighting the field, it is showing only in the network
@@ -79,7 +95,19 @@ message names the field in a way only a developer would parse.
 
 ---
 
-## 3. `industry` is capped at 100 characters — **medium**, and the diagnosis differs from the report
+## 3. ~~`industry` is capped at 100 characters~~ — **PARTLY DONE (2026-09-06)**
+
+The field now has `maxLength` plus a live character counter that appears as the
+limit approaches, and a hint saying it wants a short label rather than a
+description. So the cap is visible while typing instead of discovered on
+submit.
+
+Still open: making the field say what it wants structurally — a combobox of
+common industries with free-text fallback.
+
+Original finding follows.
+
+---
 
 Reported as the description limit being too small. The actual limits:
 
@@ -104,7 +132,15 @@ unambiguous.
 
 ---
 
-## 4. No show/hide password toggle — **medium**
+## 4. ~~No show/hide password toggle~~ — **DONE (2026-09-06)**
+
+`PasswordInput` with a reveal toggle on login, register and reset. It is a
+`type="button"` — a bare button in a form submits it — and its accessible name
+changes with state.
+
+Original finding follows.
+
+---
 
 Confirmed: `LoginPage.tsx:76` and `RegisterPage.tsx:108` are plain
 `type="password"` with no reveal control.

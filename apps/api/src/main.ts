@@ -9,6 +9,7 @@ import { AppModule } from './app.module.js';
  
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter.js';
 import { assertVerificationBypassNotEnabledInProduction } from './config/verification-methods.js';
+import { buildValidationException } from './common/validation/validation-exception.js';
 import { warnIfEmailNotConfiguredInProduction } from './infrastructure/email/email.service.js';
 
 async function bootstrap() {
@@ -85,6 +86,11 @@ async function bootstrap() {
       // Business-rule failures that are not field validation (e.g. "complete
       // the profile step first") remain 400, so the two are distinguishable.
       errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+      // Adds a `fields` map to the body so the dashboard can put each message
+      // on the input it belongs to. Without it the only signal is prose in an
+      // array, which the client cannot attach to anything - so a rejected form
+      // looked like a button that did nothing.
+      exceptionFactory: buildValidationException,
     }),
   );
 

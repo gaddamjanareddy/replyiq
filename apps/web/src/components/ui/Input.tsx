@@ -6,6 +6,14 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string | undefined;
   /** Persistent guidance shown when there is no error. */
   hint?: string | undefined;
+  /**
+   * Show a live character count against `maxLength`.
+   *
+   * A limit the user cannot see is a limit they discover by being rejected —
+   * which is exactly how someone ends up typing a paragraph into a field
+   * capped at 100 and only finding out on submit.
+   */
+  showCount?: boolean;
 }
 
 /**
@@ -15,19 +23,40 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  * discovering the field is simply "invalid".
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, className = '', id, ...props }, ref) => {
+  ({ label, error, hint, showCount, className = '', id, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
 
+    const max = typeof props.maxLength === 'number' ? props.maxLength : undefined;
+    const used = typeof props.value === 'string' ? props.value.length : 0;
+    // Only worth showing as the limit comes into view; a counter sitting at
+    // 3/100 from the first keystroke is noise.
+    const counterVisible = showCount && max !== undefined && used > max * 0.6;
+
     return (
       <div className="w-full">
-        {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-ink-700 mb-1.5">
-            {label}
-          </label>
-        )}
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          {label && (
+            <label htmlFor={inputId} className="block text-sm font-medium text-ink-700">
+              {label}
+            </label>
+          )}
+          {counterVisible && (
+            <span
+              className={`text-xs tabular-nums ${
+                used >= (max ?? 0) ? 'font-medium text-amber-700' : 'text-ink-500'
+              }`}
+              // Announced politely rather than on every keystroke, which would
+              // make a screen reader unusable while typing.
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {used}/{max}
+            </span>
+          )}
+        </div>
         <input
             ref={ref}
             id={inputId}
