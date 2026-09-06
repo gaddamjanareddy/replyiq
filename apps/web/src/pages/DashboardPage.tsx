@@ -31,109 +31,152 @@ export function DashboardPage() {
   const verifiedDomains = domains.filter((d) => d.status === 'VERIFIED');
 
   return (
-    <div className="max-w-5xl space-y-6">
-      {/* The most important thing on the page: whether this actually works
-          right now. Above the greeting, because it is more urgent than one. */}
-      {setupComplete && <ServiceModeBanner mode={business.serviceMode} context="dashboard" />}
+    /**
+     * A bento grid, not a card stack.
+     *
+     * The previous layout gave the greeting, three statistics and a checklist
+     * the same visual weight, so the eye had nowhere to land and everything
+     * read as equally unimportant. Hierarchy in a bento comes from SIZE: tiles
+     * of identical size are just a card layout with rounded corners.
+     *
+     * The order encodes what the owner actually needs to know, in order:
+     * is it working, what do I do next, and only then the supporting detail.
+     */
+    <div className="mx-auto max-w-6xl">
+      {/* Whether this works right now. Above everything, because it is more
+          urgent than a greeting. */}
+      {setupComplete && (
+        <div className="mb-4 animate-rise">
+          <ServiceModeBanner mode={business.serviceMode} context="dashboard" />
+        </div>
+      )}
 
-      <Card>
-        <CardBody>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="text-lg font-semibold text-ink-900">
-                {greeting()}{user ? `, ${user.name.split(' ')[0]}` : ''}
-              </h1>
-              <p className="mt-1 text-sm text-ink-600">
-                {setupComplete
-                  ? business.serviceMode === 'LIVE'
-                    ? `Your AI receptionist is answering on ${describeDomains(verifiedDomains.length)}.`
-                    : 'Setup is complete. See the note above to start answering real visitors.'
-                  : 'A few steps left before your AI receptionist can start work.'}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+      <div className="stagger grid grid-cols-1 gap-4 lg:grid-cols-12">
+        {/* HERO — the widest tile, and the only one with display type. */}
+        <Card className="animate-rise lg:col-span-8">
+          <CardBody className="sm:p-6">
+            <p className="text-overline text-xs font-semibold text-ink-500">
+              {setupComplete ? 'Your receptionist' : 'Getting started'}
+            </p>
+            <h1 className="text-display mt-2 text-2xl font-semibold text-ink-900 sm:text-3xl">
+              {greeting()}{user ? `, ${user.name.split(' ')[0]}` : ''}
+            </h1>
+            <p className="mt-2 max-w-prose text-sm text-ink-600">
+              {setupComplete
+                ? business.serviceMode === 'LIVE'
+                  ? `Your AI receptionist is answering on ${describeDomains(verifiedDomains.length)}.`
+                  : 'Setup is complete. See the note above to start answering real visitors.'
+                : 'A few steps left before your AI receptionist can start work.'}
+            </p>
+
+            {!setupComplete && (
+              <div className="mt-6">
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium text-ink-700">
+                    Step {Math.min(completedSteps + 1, steps.length || 4)} of {steps.length || 4}
+                  </span>
+                  <span className="text-ink-500">
+                    {steps.find((s) => !s.completed)?.label ?? 'Almost there'}
+                  </span>
+                </div>
+                <ProgressBar completed={completedSteps} total={steps.length || 4} />
+                <Link to="/onboarding" className="mt-5 inline-block">
+                  <Button size="lg">
+                    {completedSteps === 0 ? 'Start setup' : 'Continue setup'}
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* STATUS — narrow and tall, carrying the two badges that were
+            previously crowded into the hero's top-right corner. Given its own
+            tile because "is it live?" is a question, not a decoration. */}
+        <Card className="animate-rise lg:col-span-4">
+          {/* Content sits at the top and the caption is pushed to the bottom
+              with `mt-auto`. Spreading three items with `justify-between`
+              left the badge floating in the middle of a tall tile, which
+              reads as a layout accident rather than as breathing room. */}
+          <CardBody className="flex h-full flex-col sm:p-6">
+            <p className="text-overline text-xs font-semibold text-ink-500">Status</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
               {setupComplete && (
                 // The halo only fires for LIVE. TEST and INACTIVE are states to
                 // resolve, not states to celebrate.
-                <Badge
-                  variant={modeBadge.variant}
-                  dot
-                  pulse={business.serviceMode === 'LIVE'}
-                >
+                <Badge variant={modeBadge.variant} dot pulse={business.serviceMode === 'LIVE'}>
                   {modeBadge.label}
                 </Badge>
               )}
             </div>
-          </div>
+            <p className="mt-auto pt-6 text-xs text-ink-500">
+              {setupComplete
+                ? business.serviceMode === 'LIVE'
+                  ? 'Answering real visitors.'
+                  : 'Everything works — it just is not answering real visitors yet.'
+                : 'Finish setup to bring your receptionist online.'}
+            </p>
+          </CardBody>
+        </Card>
 
-          {!setupComplete && (
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium text-ink-700">
-                  Step {Math.min(completedSteps + 1, steps.length || 4)} of {steps.length || 4}
-                </span>
-                <span className="text-ink-500">
-                  {steps.find((s) => !s.completed)?.label ?? 'Almost there'}
-                </span>
-              </div>
-              <ProgressBar completed={completedSteps} total={steps.length || 4} />
-              <Link to="/onboarding" className="mt-4 inline-block">
-                <Button size="lg">
-                  {completedSteps === 0 ? 'Start setup' : 'Continue setup'}
-                </Button>
-              </Link>
-            </div>
-          )}
-        </CardBody>
-      </Card>
+        {/* SUPPORTING DETAIL — equal weight is correct here, because these
+            three genuinely are peers. */}
+        <div className="animate-rise lg:col-span-4">
+          <StatCard
+            label="Verified websites"
+            value={String(verifiedDomains.length)}
+            sub={
+              verifiedDomains.length === 0
+                ? 'None yet'
+                : verifiedDomains.map((d) => d.domain).join(', ')
+            }
+            to="/dashboard/domains"
+          />
+        </div>
+        <div className="animate-rise lg:col-span-4">
+          <StatCard
+            label="Business"
+            value={business.name}
+            sub={business.industry ?? 'No industry set'}
+          />
+        </div>
+        <div className="animate-rise lg:col-span-4">
+          <StatCard
+            label="Website"
+            value={business.websiteUrl ? stripScheme(business.websiteUrl) : 'Not set'}
+            sub={business.websiteUrl ? 'From your profile' : 'Add one in settings'}
+            to="/dashboard/settings"
+          />
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="Business" value={business.name} sub={business.industry ?? 'No industry set'} />
-        <StatCard
-          label="Verified websites"
-          value={String(verifiedDomains.length)}
-          sub={
-            verifiedDomains.length === 0
-              ? 'None yet'
-              : verifiedDomains.map((d) => d.domain).join(', ')
-          }
-          to="/dashboard/domains"
-        />
-        <StatCard
-          label="Website"
-          value={business.websiteUrl ? stripScheme(business.websiteUrl) : 'Not set'}
-          sub={business.websiteUrl ? 'From your profile' : 'Add one in settings'}
-          to="/dashboard/settings"
-        />
+        <Card className="animate-rise lg:col-span-12">
+          <CardHeader>
+            <h2 className="text-title text-sm font-semibold text-ink-900">What’s next</h2>
+          </CardHeader>
+          <CardBody>
+            <ul className="space-y-3 text-sm">
+              <NextStep
+                done={setupComplete}
+                title="Finish setup"
+                description="Profile and a verified website."
+                to="/onboarding"
+              />
+              <NextStep
+                done={false}
+                title="Teach it about your business"
+                description="Let us read your website, or write the answers yourself."
+                to="/dashboard/knowledge"
+              />
+              <NextStep
+                done={false}
+                title="Add the widget to your site"
+                description="One line of code, and your receptionist is live. Coming soon."
+              />
+            </ul>
+          </CardBody>
+        </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <h2 className="text-sm font-semibold text-ink-900">What’s next</h2>
-        </CardHeader>
-        <CardBody>
-          <ul className="space-y-3 text-sm">
-            <NextStep
-              done={setupComplete}
-              title="Finish setup"
-              description="Profile and a verified website."
-              to="/onboarding"
-            />
-            <NextStep
-              done={false}
-              title="Teach it about your business"
-              description="Let us read your website, or write the answers yourself."
-              to="/dashboard/knowledge"
-            />
-            <NextStep
-              done={false}
-              title="Add the widget to your site"
-              description="One line of code, and your receptionist is live. Coming soon."
-            />
-          </ul>
-        </CardBody>
-      </Card>
     </div>
   );
 }
