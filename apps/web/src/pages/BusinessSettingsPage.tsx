@@ -10,6 +10,7 @@ import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { PageSkeleton } from '../components/ui/Skeleton';
 import { getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
+import { PageHeader } from '../components/layout/PageHeader';
 
 export function BusinessSettingsPage() {
   const user = useAuthStore((s) => s.user);
@@ -82,13 +83,12 @@ export function BusinessSettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold text-ink-900">Business profile</h1>
-        <p className="mt-1 text-sm text-ink-600">
-          Your AI receptionist uses this to introduce itself and match your tone.
-        </p>
-      </header>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <PageHeader
+        overline="Your business"
+        title="Business profile"
+        subtitle="Your AI receptionist uses this to introduce itself and match your tone."
+      />
 
       {saved && (
         <Banner tone="success" title="Saved" live>

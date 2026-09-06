@@ -23,6 +23,7 @@ import { Modal } from '../components/ui/Modal';
 import { getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
 import { pluralize } from '../lib/plural';
+import { PageHeader } from '../components/layout/PageHeader';
 
 export function KnowledgePage() {
   const user = useAuthStore((s) => s.user);
@@ -51,18 +52,16 @@ export function KnowledgePage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-ink-900">What your receptionist knows</h1>
-          <p className="mt-1 text-sm text-ink-600">
-            Everything here is something it can answer. Correct anything that looks wrong — it
-            learns from you, not the other way round.
-          </p>
-        </div>
-        {summary && summary.itemCount > 0 && (
-          <Badge variant="info">{pluralize(summary.itemCount, 'answer')}</Badge>
-        )}
-      </header>
+      <PageHeader
+        overline="Your receptionist"
+        title="What it knows"
+        subtitle="Everything here is something it can answer. Correct anything that looks wrong — it learns from you, not the other way round."
+        actions={
+          summary && summary.itemCount > 0 ? (
+            <Badge variant="info">{pluralize(summary.itemCount, 'answer')}</Badge>
+          ) : undefined
+        }
+      />
 
       {error && <ErrorBanner copy={error} />}
 

@@ -7,7 +7,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/onboarding': 'Setup',
   '/dashboard/settings': 'Business Settings',
-  '/dashboard/domains': 'Domains',
+  '/dashboard/domains': 'Websites',
   '/dashboard/knowledge': 'Knowledge',
   '/dashboard/widget': 'Your receptionist',
 };

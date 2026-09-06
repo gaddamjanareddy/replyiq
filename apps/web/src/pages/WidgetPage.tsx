@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { PageSkeleton } from '../components/ui/Skeleton';
+import { PageHeader } from '../components/layout/PageHeader';
 
 /**
  * Install the receptionist, and try it before you do.
@@ -88,12 +89,11 @@ export function WidgetPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-title text-xl font-semibold text-ink-900">Your receptionist</h1>
-        <p className="mt-1 text-sm text-ink-600">
-          Try it here, then add one line to your website when you are happy with it.
-        </p>
-      </header>
+      <PageHeader
+        overline="Go live"
+        title="Your receptionist"
+        subtitle="Try it here, then add one line to your website when you are happy with it."
+      />
 
       {error && <ErrorBanner copy={error} />}
 

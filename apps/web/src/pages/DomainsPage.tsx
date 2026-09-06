@@ -15,6 +15,7 @@ import { getErrorCode, getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
 import { describeDomainProblem, isSandboxDomain, normalizeDomain } from '../lib/domain';
 import { ServiceModeBanner } from '../components/domains/ServiceModeBanner';
+import { PageHeader } from '../components/layout/PageHeader';
 
 export function DomainsPage() {
   const user = useAuthStore((s) => s.user);
@@ -50,14 +51,22 @@ export function DomainsPage() {
     }
   };
 
+  const verifiedCount = domains.filter((d) => d.status === 'VERIFIED').length;
+
   return (
-    <div className="max-w-4xl space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold text-ink-900">Websites</h1>
-        <p className="mt-1 text-sm text-ink-600">
-          Your AI receptionist works on the websites you’ve verified here.
-        </p>
-      </header>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        overline="Setup"
+        title="Websites"
+        subtitle="Your AI receptionist works on the websites you’ve verified here."
+        actions={
+          verifiedCount > 0 ? (
+            <Badge variant="success">
+              {verifiedCount} verified
+            </Badge>
+          ) : undefined
+        }
+      />
 
       {businessData && <ServiceModeBanner mode={serviceMode} context="domains" />}
 
