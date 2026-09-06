@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { useBusiness, useDomains } from '../hooks/useBusiness';
@@ -27,6 +27,12 @@ interface PreviewAnswer {
   mode: 'LIVE' | 'TEST';
 }
 
+interface Insights {
+  gaps: Array<{ question: string; askedAt: string; timesAsked: number }>;
+  recent: Array<{ question: string; confidence: string; askedAt: string }>;
+  totals: { asked: number; answered: number; unsure: number; unknown: number };
+}
+
 /** Where the widget script is served from — the dashboard's own origin. */
 const widgetSrc = `${window.location.origin}/widget.js`;
 
@@ -40,6 +46,16 @@ export function WidgetPage() {
   const [answer, setAnswer] = useState<PreviewAnswer | null>(null);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<ErrorCopy | null>(null);
+  const [insights, setInsights] = useState<Insights | null>(null);
+
+  useEffect(() => {
+    if (!businessId) return;
+    apiFetch<Insights>(`/api/v1/businesses/${businessId}/receptionist/insights`)
+      .then(setInsights)
+      // A failed insights load must not take the install instructions down
+      // with it - the snippet is the reason most people open this page.
+      .catch(() => undefined);
+  }, [businessId]);
 
   if (isLoading || !businessData?.business || !businessId) {
     return <PageSkeleton label="Loading your widget" />;
@@ -190,6 +206,70 @@ export function WidgetPage() {
           </ul>
         </CardBody>
       </Card>
+
+      {insights && insights.totals.asked > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-title text-sm font-semibold text-ink-900">
+              What people are asking
+            </h2>
+          </CardHeader>
+          <CardBody className="space-y-5">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { label: 'Asked', value: insights.totals.asked },
+                { label: 'Answered', value: insights.totals.answered },
+                { label: 'Unanswered', value: insights.totals.unknown },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-card border border-ink-200 p-3">
+                  <p className="text-display text-2xl font-semibold text-ink-900">{stat.value}</p>
+                  <p className="text-overline mt-1 text-xs font-medium text-ink-500">
+                    {stat.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {insights.gaps.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-semibold text-ink-900">
+                  Questions it could not answer
+                </h3>
+                <p className="mt-1 text-sm text-ink-600">
+                  Each of these is one answer away from being handled.
+                </p>
+                <ul className="stagger mt-3 space-y-2">
+                  {insights.gaps.map((gap) => (
+                    <li
+                      key={gap.question}
+                      className="animate-rise flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+                    >
+                      {/* Visitor-authored text. React escapes it; it is never
+                          interpolated into markup anywhere. */}
+                      <span className="text-sm text-amber-800">{gap.question}</span>
+                      {gap.timesAsked > 1 && (
+                        <span className="shrink-0 text-xs font-medium text-amber-700">
+                          asked {gap.timesAsked}×
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/dashboard/knowledge"
+                  className="mt-3 inline-block text-sm font-medium text-brand-700 underline"
+                >
+                  Add answers for these
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-600">
+                Nothing has gone unanswered yet.
+              </p>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       <p className="text-xs text-ink-500">
         Business ID <code className="text-ink-600">{businessId}</code> — this is not a secret, it is

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { ReceptionistService } from './receptionist.service.js';
@@ -44,5 +44,15 @@ export class ReceptionistPreviewController {
     // by the embedded script, not by this client, and every byte there is paid
     // for by a stranger's browser.
     return { success: true, message: 'Preview answer', data: answer };
+  }
+
+  /** What visitors have been asking, and which questions went unanswered. */
+  @Get('insights')
+  async insights(@Param('businessId') businessId: string) {
+    return {
+      success: true,
+      message: 'Receptionist insights',
+      data: await this.receptionist.insights(businessId),
+    };
   }
 }

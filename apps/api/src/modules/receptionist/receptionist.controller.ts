@@ -50,6 +50,6 @@ export class ReceptionistController {
     @Body() dto: AskDto,
     @Headers('origin') origin?: string,
   ) {
-    return this.receptionist.ask(businessId, origin, dto.question);
+    return this.receptionist.ask(businessId, origin, dto.question, dto.sessionKey);
   }
 }

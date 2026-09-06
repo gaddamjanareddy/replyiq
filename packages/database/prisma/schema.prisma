@@ -147,10 +147,11 @@ model Business {
   updatedAt        DateTime         @updatedAt
   deletedAt        DateTime?
 
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  domains            BusinessDomain[]
-  knowledgeSources   KnowledgeSource[]
-  onboardingProgress OnboardingProgress?
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  receptionistQuestions ReceptionistQuestion[]
+  domains               BusinessDomain[]
+  knowledgeSources      KnowledgeSource[]
+  onboardingProgress    OnboardingProgress?
 
   @@index([organizationId])
   @@index([status])
@@ -348,6 +349,47 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+/// One question a visitor asked, and how well the receptionist handled it.
+///
+/// This is the product's feedback loop: the questions that came back
+/// `unknown` are precisely the answers the owner should write next, and no
+/// amount of guessing replaces seeing what people actually type.
+///
+/// ── What is deliberately NOT stored ──────────────────────────────────────
+/// No IP address, no user agent, no cookie, nothing that identifies the
+/// person asking. The owner needs to know WHAT was asked, never BY WHOM, and
+/// storing the second would create an obligation that buys the product
+/// nothing. `sessionKey` is a random per-conversation value generated in the
+/// browser and never linked to anything else - enough to group one visit's
+/// questions together, useless for tracking anyone across visits.
+///
+/// The question text itself is unavoidably visitor-authored free text, so it
+/// is treated as such: shown to the owner escaped, never interpolated
+/// anywhere, and swept after a retention window.
+model ReceptionistQuestion {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @db.Uuid
+  /// Truncated to the same limit the API accepts.
+  question   String   @db.VarChar(500)
+  /// answered | unsure | unknown - the honesty signal, and what makes the
+  /// gap report possible.
+  confidence String   @db.VarChar(16)
+  /// The item that answered it, kept for "which answers earn their keep".
+  /// Nulled rather than cascaded when an item is deleted, so history survives
+  /// the owner tidying their knowledge base.
+  itemId     String?  @db.Uuid
+  /// Groups one visit's questions. Random, ephemeral, never linked to a person.
+  sessionKey String   @db.VarChar(64)
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([businessId, createdAt])
+  /// Serves the gap report directly: the unanswered questions, newest first.
+  @@index([businessId, confidence, createdAt])
+  @@map("receptionist_questions")
 }
 
 model OnboardingProgress {

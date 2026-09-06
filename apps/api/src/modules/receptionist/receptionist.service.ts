@@ -28,6 +28,9 @@ import { checkWidgetOrigin, type AllowedDomain } from './widget-origin.js';
  *      message; the reason goes to the log where an operator can act on it.
  */
 
+/** Guards what goes into the itemId column, which is a real uuid or nothing. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** How many passages retrieval hands the engine. */
 const MAX_PASSAGES = 6;
 /** Hard cap on a visitor's question. Long enough for a real one, short enough
@@ -52,7 +55,12 @@ export class ReceptionistService {
    * `origin` is the browser-set Origin header. See widget-origin.ts for what
    * that does and does not prove.
    */
-  async ask(businessId: string, origin: string | undefined, question: string): Promise<AskResult> {
+  async ask(
+    businessId: string,
+    origin: string | undefined,
+    question: string,
+    sessionKey?: string,
+  ): Promise<AskResult> {
     const { domains, mode } = await this.loadServingContext(businessId);
 
     // TEST mode businesses may be developed against from localhost; LIVE ones
@@ -74,7 +82,11 @@ export class ReceptionistService {
       );
     }
 
-    return this.answerFor(businessId, question, mode);
+    // The session key is what marks this as real visitor traffic, so passing
+    // it here is what makes the gap report exist at all. Dropping it fails
+    // silently by design — the answer is still correct and nothing is logged —
+    // which is exactly why this path is verified end to end rather than trusted.
+    return this.answerFor(businessId, question, mode, sessionKey);
   }
 
   /**
@@ -86,6 +98,7 @@ export class ReceptionistService {
     businessId: string,
     question: string,
     mode: 'LIVE' | 'TEST',
+    sessionKey?: string,
   ): Promise<AskResult> {
     const trimmed = question.trim().slice(0, MAX_QUESTION_LENGTH);
     if (trimmed.length === 0) {
@@ -106,7 +119,53 @@ export class ReceptionistService {
     }
 
     const answer = await this.engine.answer(trimmed, passages, { broadened });
+
+    // Only real visitor traffic is recorded. An owner testing their own
+    // wording in the dashboard would otherwise flood the gap report with
+    // questions no customer ever asked, and the report is only useful if
+    // everything in it came from outside.
+    if (sessionKey) {
+      void this.record(businessId, trimmed, answer.confidence, answer.citations[0]?.id, sessionKey);
+    }
+
     return { ...answer, mode };
+  }
+
+  /**
+   * Record a question, without ever making a visitor wait for it.
+   *
+   * Fire-and-forget and swallowing its own errors, deliberately. Analytics
+   * must never delay an answer or turn a working reply into a failed request -
+   * a visitor asking about opening hours should not see an error because a
+   * write timed out.
+   */
+  private async record(
+    businessId: string,
+    question: string,
+    confidence: string,
+    itemId: string | undefined,
+    sessionKey: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.receptionistQuestion.create({
+        data: {
+          businessId,
+          question,
+          confidence,
+          // Only a real knowledge item id is stored; the engine's citation ids
+          // are item ids, but a guard here keeps a future engine from writing
+          // something that is not one.
+          itemId: itemId && UUID_RE.test(itemId) ? itemId : null,
+          sessionKey: sessionKey.slice(0, 64),
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not record a receptionist question: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /**
@@ -143,6 +202,71 @@ export class ReceptionistService {
       businessName,
       mode,
       greeting: `Hi — I can answer questions about ${businessName}. What would you like to know?`,
+    };
+  }
+
+  /**
+   * What visitors have been asking, for the owner.
+   *
+   * Returns the gaps first and separately, because they are the only part
+   * that is directly actionable: every unanswered question is one answer away
+   * from being handled. A single undifferentiated list would bury them.
+   */
+  async insights(
+    businessId: string,
+    days = 30,
+  ): Promise<{
+    gaps: Array<{ question: string; askedAt: Date; timesAsked: number }>;
+    recent: Array<{ question: string; confidence: string; askedAt: Date }>;
+    totals: { asked: number; answered: number; unsure: number; unknown: number };
+  }> {
+    const since = new Date(Date.now() - days * 86_400_000);
+
+    const [rows, grouped] = await Promise.all([
+      this.prisma.receptionistQuestion.findMany({
+        where: { businessId, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { question: true, confidence: true, createdAt: true },
+      }),
+      this.prisma.receptionistQuestion.groupBy({
+        by: ['confidence'],
+        where: { businessId, createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const count = (c: string) =>
+      grouped.find((g) => g.confidence === c)?._count._all ?? 0;
+
+    // Repeats are collapsed and counted: "asked nine times" is a far stronger
+    // signal to the owner than the same line nine times over.
+    const unanswered = await this.prisma.receptionistQuestion.groupBy({
+      by: ['question'],
+      where: { businessId, confidence: 'unknown', createdAt: { gte: since } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+      orderBy: { _count: { question: 'desc' } },
+      take: 20,
+    });
+
+    return {
+      gaps: unanswered.map((g) => ({
+        question: g.question,
+        askedAt: g._max.createdAt ?? since,
+        timesAsked: g._count._all,
+      })),
+      recent: rows.map((r) => ({
+        question: r.question,
+        confidence: r.confidence,
+        askedAt: r.createdAt,
+      })),
+      totals: {
+        asked: grouped.reduce((n, g) => n + g._count._all, 0),
+        answered: count('answered'),
+        unsure: count('unsure'),
+        unknown: count('unknown'),
+      },
     };
   }
 

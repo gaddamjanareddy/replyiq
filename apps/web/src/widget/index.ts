@@ -38,6 +38,18 @@ interface AskResponse {
 /** Only ever mounted once, however many times the tag is pasted. */
 const GUARD = '__replyiqWidgetMounted';
 
+/**
+ * A random key grouping one visit's questions, so the owner reads a
+ * conversation rather than unrelated lines.
+ *
+ * Deliberately per page load and held in memory only - no cookie, no
+ * localStorage, nothing that survives the tab. It exists to group, never to
+ * recognise anyone: a returning visitor is a new session and that is correct.
+ * Storing it would turn a grouping key into tracking and drag every customer's
+ * site into a consent conversation it does not need to have.
+ */
+const SESSION_KEY = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
 const STYLES = `
 :host { all: initial; }
 *, *::before, *::after { box-sizing: border-box; }
@@ -277,7 +289,7 @@ function mount(businessId: string, apiBase: string): void {
       const res = await fetch(`${apiBase}/api/v1/receptionist/${businessId}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, sessionKey: SESSION_KEY }),
       });
       typing.remove();
       if (!res.ok) {
