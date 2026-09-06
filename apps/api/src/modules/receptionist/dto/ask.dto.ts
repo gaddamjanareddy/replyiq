@@ -22,4 +22,17 @@ export class AskDto {
   @MaxLength(64)
   @Matches(/^[A-Za-z0-9_-]+$/, { message: 'sessionKey must be an opaque identifier' })
   sessionKey?: string;
+
+  /**
+   * The question asked immediately before this one, so a follow-up like "and
+   * on Sundays?" can be understood.
+   *
+   * Only ever consulted when the question alone matches nothing, and never
+   * stored — the recorded row holds what the visitor actually typed, not a
+   * sentence the server assembled.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_QUESTION_LENGTH)
+  previousQuestion?: string;
 }

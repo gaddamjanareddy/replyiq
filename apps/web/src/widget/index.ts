@@ -228,6 +228,16 @@ function mount(businessId: string, apiBase: string): void {
 
   let open = false;
   let config: WidgetConfig | null = null;
+  /**
+   * The last thing the visitor asked, so a follow-up like "and on Sundays?"
+   * can be understood.
+   *
+   * One question, not a transcript. The server only consults it when the new
+   * question matches nothing on its own, so more history would be weight
+   * carried for no benefit — and sending a whole conversation to be searched
+   * is a lot of someone's words to hand over for a feature this small.
+   */
+  let previousQuestion: string | null = null;
   let panel: HTMLDivElement | null = null;
   let busy = false;
 
@@ -289,7 +299,11 @@ function mount(businessId: string, apiBase: string): void {
       const res = await fetch(`${apiBase}/api/v1/receptionist/${businessId}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, sessionKey: SESSION_KEY }),
+        body: JSON.stringify({
+          question,
+          sessionKey: SESSION_KEY,
+          ...(previousQuestion ? { previousQuestion } : {}),
+        }),
       });
       typing.remove();
       if (!res.ok) {
@@ -309,6 +323,9 @@ function mount(businessId: string, apiBase: string): void {
       typing.remove();
       say("I can't reach the network right now. Please try again in a moment.", 'problem');
     } finally {
+      // Recorded whatever the outcome: a question that failed is still the
+      // thing a follow-up refers to.
+      previousQuestion = question;
       busy = false;
       const send = panel?.querySelector<HTMLButtonElement>('.send');
       if (send) send.disabled = false;
@@ -388,6 +405,10 @@ function mount(businessId: string, apiBase: string): void {
     if (!open) {
       panel?.remove();
       panel = null;
+      // Closing the panel ends the conversation. Carrying context into a
+      // reopened chat would let a question from ten minutes ago silently steer
+      // an unrelated one.
+      previousQuestion = null;
       launcher.focus();
       return;
     }

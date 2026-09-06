@@ -60,6 +60,7 @@ export class ReceptionistService {
     origin: string | undefined,
     question: string,
     sessionKey?: string,
+    previousQuestion?: string,
   ): Promise<AskResult> {
     const { domains, mode } = await this.loadServingContext(businessId);
 
@@ -86,7 +87,7 @@ export class ReceptionistService {
     // it here is what makes the gap report exist at all. Dropping it fails
     // silently by design — the answer is still correct and nothing is logged —
     // which is exactly why this path is verified end to end rather than trusted.
-    return this.answerFor(businessId, question, mode, sessionKey);
+    return this.answerFor(businessId, question, mode, sessionKey, previousQuestion);
   }
 
   /**
@@ -99,13 +100,14 @@ export class ReceptionistService {
     question: string,
     mode: 'LIVE' | 'TEST',
     sessionKey?: string,
+    previousQuestion?: string,
   ): Promise<AskResult> {
     const trimmed = question.trim().slice(0, MAX_QUESTION_LENGTH);
     if (trimmed.length === 0) {
       return { mode, confidence: 'unknown', text: NO_KNOWLEDGE_TEXT, citations: [] };
     }
 
-    const { passages, broadened } = await this.retrieve(businessId, trimmed);
+    const { passages, broadened } = await this.retrieve(businessId, trimmed, previousQuestion);
 
     // An empty knowledge base is the owner's problem to fix, and saying "I
     // don't know" would hide that behind what looks like a failed lookup.
@@ -334,12 +336,37 @@ export class ReceptionistService {
   private async retrieve(
     businessId: string,
     query: string,
+    previousQuestion?: string,
   ): Promise<{ passages: RetrievedPassage[]; broadened: boolean }> {
     const strict = await this.runRetrieval(businessId, query, false);
     if (strict.length > 0) return { passages: strict, broadened: false };
 
     const broad = await this.runRetrieval(businessId, query, true);
-    return { passages: broad, broadened: broad.length > 0 };
+    if (broad.length > 0) return { passages: broad, broadened: true };
+
+    /**
+     * Last resort: read the question as a follow-up.
+     *
+     * "And on Sundays?" carries almost no searchable content on its own — the
+     * subject lives in the question before it. Combining the two recovers the
+     * dominant case in any real conversation, which is a short follow-up to
+     * something already asked.
+     *
+     * Deliberately only reached when the question alone found NOTHING. Mixing
+     * the previous question into every search would let stale context hijack a
+     * clear new question: ask about hours, then about parking, and the parking
+     * answer would be competing with hours terms for no reason.
+     *
+     * Always marked broadened, so a contextual hit is offered rather than
+     * asserted. The receptionist guessed at what "and on Sundays" meant, and
+     * the visitor should be able to see that it guessed.
+     */
+    const context = previousQuestion?.trim();
+    if (!context) return { passages: [], broadened: false };
+
+    const combined = `${context} ${query}`.slice(0, MAX_QUESTION_LENGTH * 2);
+    const contextual = await this.runRetrieval(businessId, combined, true);
+    return { passages: contextual, broadened: contextual.length > 0 };
   }
 
   /** One retrieval pass, scoped hard to one business. */
