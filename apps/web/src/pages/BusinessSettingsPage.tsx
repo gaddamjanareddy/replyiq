@@ -4,6 +4,7 @@ import { useBusiness, useUpdateBusiness } from '../hooks/useBusiness';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { getFieldErrors, type FieldErrorMap } from '../api/field-errors';
+import { INDUSTRY_SUGGESTIONS } from '../lib/industries';
 import { Card, CardHeader, CardBody, CardFooter } from '../components/ui/Card';
 import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { PageSkeleton } from '../components/ui/Skeleton';
@@ -120,6 +121,7 @@ export function BusinessSettingsPage() {
               // counter makes the limit apparent while typing instead.
               maxLength={100}
               showCount
+              suggestions={INDUSTRY_SUGGESTIONS}
               hint="A short label, not a description — there's room for detail below."
               error={fieldErrors.industry}
               onChange={(e) => update({ industry: e.target.value })}

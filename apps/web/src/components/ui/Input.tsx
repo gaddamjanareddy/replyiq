@@ -14,6 +14,19 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
    * capped at 100 and only finding out on submit.
    */
   showCount?: boolean;
+  /**
+   * Offer a set of likely values while still accepting anything typed.
+   *
+   * A native `<datalist>` rather than a bespoke dropdown, deliberately. It is
+   * keyboard-accessible and screen-reader-announced with no code of ours, it
+   * never traps focus, and it degrades to a plain text field if anything goes
+   * wrong. A hand-rolled combobox looks more designed and is one of the
+   * easiest components in the world to get wrong for anyone not using a mouse.
+   *
+   * The point is to tell the user what SHAPE of answer is wanted — a short
+   * label, not a paragraph — which suggestions do just by existing.
+   */
+  suggestions?: readonly string[];
 }
 
 /**
@@ -23,11 +36,12 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  * discovering the field is simply "invalid".
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, showCount, className = '', id, ...props }, ref) => {
+  ({ label, error, hint, showCount, suggestions, className = '', id, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
+    const listId = `${inputId}-options`;
 
     const max = typeof props.maxLength === 'number' ? props.maxLength : undefined;
     const used = typeof props.value === 'string' ? props.value.length : 0;
@@ -62,6 +76,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : hint ? hintId : undefined}
+            list={suggestions && suggestions.length > 0 ? listId : undefined}
             className={[
               'w-full rounded-lg border bg-surface px-3 py-2 text-sm text-ink-900',
               'placeholder:text-ink-500 transition-colors',
@@ -75,6 +90,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               .join(' ')}
           {...props}
         />
+        {suggestions && suggestions.length > 0 && (
+          <datalist id={listId}>
+            {suggestions.map((option) => (
+              <option key={option} value={option} />
+            ))}
+          </datalist>
+        )}
         {error ? (
           // aria-live so a validation message that appears after the fact is
           // announced, not silently painted.

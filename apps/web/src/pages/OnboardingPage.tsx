@@ -19,6 +19,7 @@ import { PageSkeleton } from '../components/ui/Skeleton';
 import { VerificationPanel } from '../components/domains/VerificationPanel';
 import { getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
+import { INDUSTRY_SUGGESTIONS } from '../lib/industries';
 import {
   describeDomainProblem,
   hostnameFromWebsiteUrl,
@@ -309,6 +310,13 @@ function ProfileStep({
       <Input
         label="What does your business do?"
         placeholder="e.g. Plumbing, dental practice, design agency"
+        // Same treatment as the settings page, and this is the more important
+        // of the two: onboarding is where someone meets this field first, and
+        // where being rejected costs the most.
+        maxLength={100}
+        showCount
+        suggestions={INDUSTRY_SUGGESTIONS}
+        hint="A short label, not a description — there's room for detail below."
         value={form.industry}
         onChange={(e) => onChange({ ...form, industry: e.target.value })}
       />
@@ -316,6 +324,8 @@ function ProfileStep({
         label="Anything else worth knowing?"
         placeholder="e.g. Family-run since 1998, emergency callouts across Leeds"
         hint="One line is plenty. Your receptionist uses this for tone."
+        maxLength={2000}
+        showCount
         value={form.description}
         onChange={(e) => onChange({ ...form, description: e.target.value })}
       />
