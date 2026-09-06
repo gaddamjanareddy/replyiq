@@ -95,15 +95,16 @@ message names the field in a way only a developer would parse.
 
 ---
 
-## 3. ~~`industry` is capped at 100 characters~~ — **PARTLY DONE (2026-09-06)**
+## 3. ~~`industry` is capped at 100 characters~~ — **DONE (2026-09-06)**
 
-The field now has `maxLength` plus a live character counter that appears as the
-limit approaches, and a hint saying it wants a short label rather than a
-description. So the cap is visible while typing instead of discovered on
-submit.
+`maxLength`, a live character counter that appears as the limit approaches, a
+hint saying it wants a short label, and a native `<datalist>` of common
+industries with free-text still accepted. Applied to onboarding as well as
+settings, since onboarding is where the field is met first.
 
-Still open: making the field say what it wants structurally — a combobox of
-common industries with free-text fallback.
+The suggestions are the real fix: seeing "Dental practice" and "Plumbing"
+communicates the expected shape of an answer without anyone having to read a
+hint.
 
 Original finding follows.
 
