@@ -98,7 +98,7 @@ export function Sidebar() {
         // where the rail is genuinely visible.
         inert={!sidebarOpen || undefined}
         aria-hidden={!sidebarOpen || undefined}
-        className={`fixed top-0 left-0 z-40 flex h-full w-64 flex-col border-r border-ink-200 bg-white transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        className={`fixed top-0 left-0 z-40 flex h-full w-64 flex-col border-r border-ink-200 bg-surface transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

@@ -29,7 +29,7 @@ export function AuthShell({
           <p className="mt-1 text-sm text-ink-600">{subtitle}</p>
         </div>
 
-        <div className="rounded-card border border-ink-200 bg-white p-6 shadow-card">{children}</div>
+        <div className="rounded-card border border-ink-200 bg-surface p-6 shadow-card">{children}</div>
 
         <p className="mt-6 text-center text-sm text-ink-600">{footer}</p>
       </div>

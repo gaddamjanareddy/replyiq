@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useUIStore } from '../../stores/ui.store';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -28,7 +29,7 @@ export function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-20 border-b bg-white/85 px-4 py-3.5 backdrop-blur-md transition-shadow duration-200 sm:px-6 sm:py-4 ${
+      className={`sticky top-0 z-20 border-b bg-surface/85 px-4 py-3.5 backdrop-blur-md transition-shadow duration-200 sm:px-6 sm:py-4 ${
         scrolled ? 'border-ink-200 shadow-card' : 'border-transparent'
       }`}
     >
@@ -60,6 +61,10 @@ export function Header() {
         >
           {title}
         </h1>
+
+        <div className="ml-auto">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );

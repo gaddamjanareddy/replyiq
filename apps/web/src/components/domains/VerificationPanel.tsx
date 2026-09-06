@@ -149,7 +149,7 @@ export function VerificationPanel({ businessId, domain, onVerified }: Verificati
             </div>
           </fieldset>
 
-          <div className="rounded-lg border border-ink-200 bg-white p-4">
+          <div className="rounded-lg border border-ink-200 bg-surface p-4">
             {instructionsLoading || !instructions ? (
               <div className="space-y-3">
                 <Skeleton className="h-4 w-48" />
@@ -224,7 +224,7 @@ function MethodCard({
         'flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors',
         selected
           ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
-          : 'border-ink-200 bg-white hover:border-ink-300 hover:bg-ink-50',
+          : 'border-ink-200 bg-surface hover:border-ink-300 hover:bg-ink-50',
       ].join(' ')}
     >
       <input

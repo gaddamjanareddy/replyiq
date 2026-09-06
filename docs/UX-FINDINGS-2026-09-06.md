@@ -155,7 +155,34 @@ screen readers rather than only swapping an icon.
 
 ---
 
-## 5. The visual design is still ordinary — **the largest piece of work**
+## 5. ~~The visual design is still ordinary~~ — **DARK THEME DONE (2026-09-06)**
+
+A full dark theme now ships, built by redefining what the existing tokens MEAN
+per theme rather than adding `dark:` variants to 290-odd call sites — so a
+component written tomorrow cannot forget to support it. Light / System / Dark,
+`system` tracking the OS live, and an inline pre-paint script so a dark-mode
+user never gets a white flash on load.
+
+Three things measured rather than eyeballed:
+
+- Every text/background pair clears WCAG AA in **both** themes (page text 17.3:1
+  dark, muted text 4.96:1 dark, links 8.59:1 dark).
+- Lightening the accent ramp for dark was tried and **reverted**: it dropped the
+  primary button to ~2.4:1 white-on-blue, worse than the light theme. Accents
+  move up the ramp when used as text, not as fills. Now 5.03:1.
+- Placeholders were 2.6:1 in both themes — a pre-existing AA failure, now 4.84:1.
+
+A 200ms colour crossfade on `body` was also tried and reverted: Chromium
+freezes a transitioned property at its old computed value when the value comes
+from a custom property, so the body stayed light while everything else went
+dark.
+
+Still open: the page-level density/hierarchy pass, and motion inside the pages
+rather than only in the shell.
+
+Original finding follows.
+
+---
 
 Reported as: the UI has not changed; wants a dark theme, a premium feel, real
 animation, while staying easy for non-technical owners.

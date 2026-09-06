@@ -108,7 +108,7 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={[
-          'relative w-full bg-white shadow-overlay',
+          'relative w-full bg-surface shadow-overlay',
           // Full-width sheet on phones, centred card from `sm` up: a 400px-wide
           // dialog floating in the middle of a phone screen wastes the space
           // where the thumb actually is. The entrance matches that shape - it

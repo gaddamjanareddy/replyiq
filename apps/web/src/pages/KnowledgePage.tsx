@@ -463,7 +463,7 @@ function AddAnswerDialog({
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Yes — we have NHS availability for children, and a short waiting list for adults."
-            className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 hover:border-ink-400"
+            className="w-full rounded-lg border border-ink-300 bg-surface px-3 py-2 text-sm text-ink-900 placeholder:text-ink-500 hover:border-ink-400"
           />
         </div>
         {error && <ErrorBanner copy={error} />}
@@ -543,7 +543,7 @@ function EditAnswerDialog({
             rows={6}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 hover:border-ink-400"
+            className="w-full rounded-lg border border-ink-300 bg-surface px-3 py-2 text-sm text-ink-900 hover:border-ink-400"
           />
         </div>
         {error && <ErrorBanner copy={error} />}

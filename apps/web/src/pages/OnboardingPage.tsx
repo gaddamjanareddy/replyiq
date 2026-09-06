@@ -409,7 +409,7 @@ function DomainStep({
                     'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors',
                     selectedDomainId === d.id
                       ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500'
-                      : 'border-ink-200 bg-white hover:bg-ink-50',
+                      : 'border-ink-200 bg-surface hover:bg-ink-50',
                   ].join(' ')}
                 >
                   <input

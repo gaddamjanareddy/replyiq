@@ -79,6 +79,147 @@
   --animate-shimmer: shimmer 1.6s linear infinite;
   --animate-pop: pop 320ms var(--ease-out-soft);
   --animate-pulse-ring: pulse-ring 1.8s var(--ease-standard) infinite;
+  --animate-glow: glow 2.4s var(--ease-standard) infinite;
+
+  /* ── Semantic surfaces ──────────────────────────────────────────────────
+     Components reference these rather than `bg-white`, because "the colour a
+     card is" has to be able to differ between themes while the component stays
+     the same. Light values live here; the dark block below redefines them. */
+  --color-surface: oklch(1 0 0);
+  --color-surface-sunken: oklch(0.985 0.002 247.8);
+  --color-surface-raised: oklch(1 0 0);
+  --color-hairline: oklch(0.928 0.006 264.5);
+}
+
+/**
+ * ── Dark theme ────────────────────────────────────────────────────────────
+ *
+ * Implemented by redefining what the existing tokens MEAN rather than by
+ * adding a parallel set of `dark:` variants to 290-odd call sites. Tailwind v4
+ * utilities resolve through `var()`, so overriding the variables here re-skins
+ * every component at once - and, more importantly, a component written later
+ * cannot forget to support dark mode.
+ *
+ * Three rules from how the tools people live in all day actually do this:
+ *
+ *   1. NEVER PURE BLACK. #000 with white text produces halation - the text
+ *      appears to vibrate, especially on OLED. The page sits near
+ *      oklch(0.17), a very dark cool grey.
+ *
+ *   2. ELEVATION IS LIGHTNESS, NOT SHADOW. On a dark ground a shadow is nearly
+ *      invisible, so raising a surface means making it LIGHTER, not adding a
+ *      bigger blur. Each level up is a small lightness step; shadows stay only
+ *      to soften the edge.
+ *
+ *   3. ACCENTS MOVE UP THE RAMP. brand-600 is tuned for contrast against
+ *      white; on a dark ground the same colour is muddy and fails contrast.
+ *      The whole brand ramp shifts lighter and slightly desaturates, because
+ *      saturated blues glow unpleasantly against dark.
+ *
+ * The `ink` scale keeps its meaning in both themes - ink-50 is always the page,
+ * ink-900 is always primary text - so `text-ink-500` still means "muted" and no
+ * component has to know which theme it is in.
+ */
+@layer theme {
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    /* Page → card → raised. Lightness climbs; that IS the elevation. */
+    --color-surface: oklch(0.223 0.011 264);
+    --color-surface-sunken: oklch(0.173 0.009 264);
+    --color-surface-raised: oklch(0.263 0.013 264);
+    --color-hairline: oklch(0.311 0.014 264);
+
+    /* Ink inverted in lightness, preserved in meaning. Not a naive mirror:
+       the steps are compressed at the light end because differences between
+       near-whites are far more visible on dark than near-blacks are on
+       white. */
+    --color-ink-50: oklch(0.173 0.009 264);
+    --color-ink-100: oklch(0.223 0.011 264);
+    --color-ink-200: oklch(0.263 0.013 264);
+    --color-ink-300: oklch(0.311 0.014 264);
+    --color-ink-400: oklch(0.446 0.02 264);
+    --color-ink-500: oklch(0.632 0.021 264);
+    --color-ink-600: oklch(0.72 0.019 264);
+    --color-ink-700: oklch(0.808 0.015 264);
+    --color-ink-800: oklch(0.887 0.009 264);
+    --color-ink-900: oklch(0.967 0.004 264);
+
+    /* Brand: role-preserving, NOT lightness-ordered.
+       The obvious move is to shift the whole accent ramp lighter for dark
+       mode. That is right for an accent used as TEXT and wrong for one used
+       as a solid FILL, and this ramp is used for both. Lightening brand-600 to
+       0.72 was tried and reverted: `bg-brand-600 text-white` is the primary
+       button everywhere, and white on a light blue measured about 2.4:1 -
+       worse than the light theme it replaced.
+       So the low end darkens (subtle fills on a dark card), 600 stays a mid
+       blue that white text clears 4.5:1 on, and only the high end moves up,
+       because that is where link and label colours live. */
+    --color-brand-50: oklch(0.271 0.055 262);
+    --color-brand-100: oklch(0.32 0.082 262);
+    --color-brand-200: oklch(0.379 0.106 261);
+    --color-brand-300: oklch(0.45 0.14 260);
+    --color-brand-400: oklch(0.5 0.155 259);
+    --color-brand-500: oklch(0.523 0.163 258);
+    --color-brand-600: oklch(0.545 0.168 258);
+    --color-brand-700: oklch(0.78 0.115 256);
+    --color-brand-800: oklch(0.86 0.08 255);
+    --color-brand-900: oklch(0.92 0.045 255);
+
+    /* Shadows go darker and deeper. A cool-grey shadow tuned for white is
+       invisible here; on dark, a shadow reads as depth only when it is
+       genuinely darker than the surface beneath it. */
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.3);
+    --shadow-raised: 0 4px 10px -2px rgb(0 0 0 / 0.5), 0 2px 6px -2px rgb(0 0 0 / 0.35);
+    --shadow-overlay: 0 24px 32px -8px rgb(0 0 0 / 0.65), 0 10px 12px -6px rgb(0 0 0 / 0.4);
+    --shadow-focus: 0 0 0 3px oklch(0.46 0.135 260);
+
+    /* Status colours, remapped for a dark ground.
+       Tailwind's defaults are tuned for dark-on-light: `text-red-600` is a
+       deep red that reads as almost brown on a dark card and fails contrast,
+       while `bg-red-50` is a pale wash that becomes a glaring light block.
+       Both directions are inverted here so `tone="error"` keeps working
+       without any component knowing which theme it is in. */
+    --color-red-50: oklch(0.28 0.062 25);
+    --color-red-100: oklch(0.34 0.084 25);
+    --color-red-200: oklch(0.42 0.107 25);
+    --color-red-400: oklch(0.63 0.164 25);
+    --color-red-500: oklch(0.7 0.17 25);
+    --color-red-600: oklch(0.75 0.153 25);
+    --color-red-700: oklch(0.82 0.115 25);
+
+    --color-amber-50: oklch(0.29 0.05 75);
+    --color-amber-100: oklch(0.35 0.07 75);
+    --color-amber-200: oklch(0.43 0.09 75);
+    --color-amber-600: oklch(0.79 0.135 75);
+    --color-amber-700: oklch(0.85 0.11 75);
+    --color-amber-800: oklch(0.89 0.085 75);
+
+    --color-emerald-50: oklch(0.28 0.045 165);
+    --color-emerald-100: oklch(0.34 0.062 165);
+    --color-emerald-200: oklch(0.42 0.082 165);
+    --color-emerald-600: oklch(0.76 0.14 165);
+    --color-emerald-700: oklch(0.83 0.11 165);
+    --color-emerald-800: oklch(0.88 0.085 165);
+
+    --color-violet-50: oklch(0.29 0.06 295);
+    --color-violet-100: oklch(0.35 0.08 295);
+    --color-violet-600: oklch(0.76 0.14 295);
+    --color-violet-700: oklch(0.83 0.11 295);
+    --color-violet-800: oklch(0.88 0.085 295);
+  }
+
+  /* The skeleton gradient is built from ink steps that both themes define, so
+     it follows automatically - but the highlight has to run the other way. On
+     dark, a shimmer that dips DARKER reads as a hole rather than a sweep. */
+  :root[data-theme='dark'] .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--color-ink-100) 0%,
+      var(--color-ink-300) 40%,
+      var(--color-ink-100) 80%
+    );
+  }
 }
 
 /* Banners, results, anything that appears in response to an action: it should
@@ -86,6 +227,14 @@
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* A slow breath of light, for the one thing on screen that is genuinely
+   working - a crawl in progress. Deliberately not a spinner: this says
+   "running" without implying a percentage we do not know. */
+@keyframes glow {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
 }
 
 @keyframes rise {
@@ -136,6 +285,15 @@
 
   body {
     @apply bg-ink-50 text-ink-900 antialiased;
+    /* NO colour transition here, deliberately.
+       A 200ms crossfade on background-color and color was tried and reverted:
+       when the value comes from a custom property, Chromium freezes the
+       transitioned property at its old computed value as the variable
+       changes, so `body` kept its light background while every other element
+       went dark. Verified directly - clearing the transition at runtime
+       snapped the body to the correct colour immediately.
+       The theme flip is instant, which is correct and unremarkable; the
+       flourish was not worth breaking the most visible element on the page. */
     /* Opt into the more legible single-storey glyphs where the font offers
        them - notably the `l`/`1` distinction, which matters when someone is
        eyeballing a verification token. */

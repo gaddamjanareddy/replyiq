@@ -46,8 +46,8 @@ export function Stepper({ steps, current, furthestReachable, onSelect }: Stepper
                 isCurrent
                   ? 'border-brand-300 bg-brand-50'
                   : step.completed
-                    ? 'border-ink-200 bg-white hover:border-brand-200 hover:bg-brand-50/40'
-                    : 'border-ink-200 bg-white',
+                    ? 'border-ink-200 bg-surface hover:border-brand-200 hover:bg-brand-50/40'
+                    : 'border-ink-200 bg-surface',
                 interactive ? 'cursor-pointer' : 'cursor-default',
               ].join(' ')}
             >

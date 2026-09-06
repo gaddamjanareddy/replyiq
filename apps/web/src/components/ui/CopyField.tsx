@@ -36,7 +36,7 @@ export function CopyButton({ value, label = 'value', className = '' }: CopyButto
       type="button"
       onClick={handleCopy}
       aria-label={`Copy ${label}`}
-      className={`interactive inline-flex shrink-0 items-center gap-1.5 rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50 ${className}`}
+      className={`interactive inline-flex shrink-0 items-center gap-1.5 rounded-md border border-ink-300 bg-surface px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50 ${className}`}
     >
       {state === 'copied' ? (
         <>

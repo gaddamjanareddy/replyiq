@@ -46,8 +46,8 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : hint ? hintId : undefined}
             className={[
-              'w-full rounded-lg border bg-white py-2 pl-3 pr-11 text-sm text-ink-900',
-              'placeholder:text-ink-400 transition-colors',
+              'w-full rounded-lg border bg-surface py-2 pl-3 pr-11 text-sm text-ink-900',
+              'placeholder:text-ink-500 transition-colors',
               'disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400',
               error
                 ? 'border-red-400 focus-visible:outline-red-500'

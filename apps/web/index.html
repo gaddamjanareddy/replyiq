@@ -8,6 +8,30 @@
          ownership token, not a secret, and it is what the verifier looks for. -->
     <meta name="replyiq-verification" content="replyiq-verify-1036c5a1-75b5-4337-8ba7-f51d4e8277ee" />
     <title>ReplyIQ</title>
+    <script>
+      // Runs before first paint, on purpose.
+      //
+      // If the theme were applied by React, a dark-mode user would get a
+      // full-brightness white flash on every load while the bundle parses.
+      // That flash is the single most-noticed defect in a themed app, and the
+      // only fix is to stamp the attribute before anything renders — which
+      // means a blocking inline script, not a module.
+      //
+      // Kept deliberately tiny and duplicated from stores/theme.store.ts;
+      // importing shared code here would defeat the point.
+      (function () {
+        try {
+          var stored = localStorage.getItem('replyiq.theme');
+          var dark =
+            stored === 'dark' ||
+            ((stored === 'system' || stored === null) &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+        } catch (e) {
+          // Site data blocked. Light is a safe, readable default.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
