@@ -29,7 +29,7 @@ export function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-20 border-b bg-surface/85 px-4 py-3.5 backdrop-blur-md transition-shadow duration-200 sm:px-6 sm:py-4 ${
+      className={`glass sticky top-0 z-20 border-b px-4 py-3.5 transition-shadow duration-200 sm:px-6 sm:py-4 ${
         scrolled ? 'border-ink-200 shadow-card' : 'border-transparent'
       }`}
     >
@@ -57,7 +57,7 @@ export function Header() {
             a page change a moment of feedback instead of an instant swap. */}
         <h1
           key={location.pathname}
-          className="animate-fade-in text-xl font-semibold tracking-tight text-ink-900"
+          className="text-title animate-fade-in text-xl font-semibold text-ink-900"
         >
           {title}
         </h1>

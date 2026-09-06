@@ -96,7 +96,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
-        className="fixed inset-0 bg-ink-900/40 backdrop-blur-[1px] animate-fade-in"
+        className="fixed inset-0 bg-ink-900/50 backdrop-blur-[3px] animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -108,7 +108,7 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={[
-          'relative w-full bg-surface shadow-overlay',
+          'glass-strong glass-edge relative w-full shadow-overlay',
           // Full-width sheet on phones, centred card from `sm` up: a 400px-wide
           // dialog floating in the middle of a phone screen wastes the space
           // where the thumb actually is. The entrance matches that shape - it
@@ -123,7 +123,7 @@ export function Modal({
         {title && (
           <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-ink-200 sm:px-6">
             <div className="min-w-0">
-              <h2 id={titleId} className="text-base font-semibold text-ink-900 break-words">
+              <h2 id={titleId} className="text-title text-base font-semibold text-ink-900 break-words">
                 {title}
               </h2>
               {description && (

@@ -362,6 +362,88 @@
     transform: translateY(0.5px) scale(0.995);
   }
 
+  /**
+   * Frosted chrome.
+   *
+   * Deliberately applied ONLY to navigation, overlays and toasts - never to
+   * content. The consistent guidance for dense product UI is that data needs
+   * solid, high-contrast surfaces; glass behind a table costs legibility and
+   * GPU for a look nobody thanks you for on day three. Chrome is different:
+   * it sits above scrolling content, so translucency communicates depth and
+   * tells you something is passing underneath.
+   *
+   * `saturate` is what separates this from a plain blur. Blurring alone
+   * washes colour out and the panel reads as dirty grey; pushing saturation
+   * back up is what makes it read as glass rather than fog.
+   */
+  .glass {
+    background-color: color-mix(in oklab, var(--color-surface) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  /**
+   * Glass for a surface that holds text you have to READ, not just chrome you
+   * glance at - a dialog, a popover.
+   *
+   * Nearly opaque on purpose. At the 72% used for chrome, a dialog picks up
+   * the scrim behind it and its body text loses measurable contrast; the
+   * effect is still legible as glass at 94% because the blur and the specular
+   * edge are doing the work, not the transparency.
+   */
+  .glass-strong {
+    background-color: color-mix(in oklab, var(--color-surface) 94%, transparent);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+  }
+
+  /* Anywhere backdrop-filter is unavailable the panel must still be opaque -
+     translucent-with-no-blur is unreadable, which is worse than no effect. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass,
+    .glass-strong {
+      background-color: var(--color-surface);
+    }
+  }
+
+  /**
+   * The specular edge: a one-pixel highlight along the top of a raised
+   * surface, as if light were catching its lip.
+   *
+   * This is the detail that separates "a box with a blur" from something that
+   * reads as a physical material, and it is why Apple's panels look lit
+   * rather than painted. Inset, so it never affects layout.
+   */
+  .glass-edge {
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.65);
+  }
+  :root[data-theme='dark'] .glass-edge {
+    /* On dark, a bright white lip looks like a seam. Barely-there is the
+       whole point - it should be felt rather than seen. */
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.07);
+  }
+
+  /**
+   * Optical type sizing.
+   *
+   * Large text at default tracking looks loose, and small text at default
+   * tracking looks cramped - the same letter-spacing is simply wrong at both
+   * ends. Tightening headings and opening up small caps labels is most of
+   * what makes typography read as considered rather than default.
+   */
+  .text-display {
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+  }
+  .text-title {
+    letter-spacing: -0.014em;
+    line-height: 1.25;
+  }
+  .text-overline {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   /* Stagger helper for lists that animate in, so rows cascade rather than
      appearing as one block. Capped at 6 - past that it reads as slow. */
   .stagger > *:nth-child(1) { animation-delay: 0ms; }

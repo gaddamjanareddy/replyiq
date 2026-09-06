@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useUIStore } from '../../stores/ui.store';
@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/ui.store';
 const DESKTOP_BREAKPOINT = 1024;
 
 export function AppLayout() {
+  const location = useLocation();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
 
@@ -35,7 +36,10 @@ export function AppLayout() {
         }`}
       >
         <Header />
-        <main className="p-4 sm:p-6">
+        {/* Keyed on the route so each navigation replays the entrance. A page
+            that fades in reads as having arrived; one that simply appears
+            reads as a redraw. */}
+        <main key={location.pathname} className="animate-rise p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
