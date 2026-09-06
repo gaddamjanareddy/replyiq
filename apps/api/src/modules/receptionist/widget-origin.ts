@@ -60,9 +60,25 @@ export function normalizeHost(host: string): string {
 export function checkWidgetOrigin(
   origin: string | undefined,
   allowed: readonly AllowedDomain[],
-  options: { allowLocalhost?: boolean } = {},
+  options: { allowLocalhost?: boolean; referer?: string } = {},
 ): OriginDecision {
-  if (!origin) return { allowed: false, reason: 'missing' };
+  /**
+   * Browsers do NOT send `Origin` on a same-origin GET.
+   *
+   * That is not an edge case: a deployment serving the widget script and the
+   * API from one origin makes every config request same-origin, and requiring
+   * `Origin` refuses it. Found on the landing page, where `ask` (a POST, which
+   * does carry Origin) worked while `config` silently 403'd and the widget
+   * fell back to a generic greeting.
+   *
+   * `Referer` is the right fallback rather than a widened rule: like `Origin`
+   * it is set by the browser and cannot be forged by page JavaScript, so a
+   * script on someone else's site gains nothing. Only its origin is used; the
+   * path is discarded, since which page asked is none of our business.
+   */
+  const effective = origin ?? originOf(options.referer);
+  if (!effective) return { allowed: false, reason: 'missing' };
+  origin = effective;
 
   let url: URL;
   try {
@@ -105,4 +121,14 @@ export function checkWidgetOrigin(
   }
 
   return { allowed: false, reason: 'not-verified' };
+}
+
+/** The origin part of a URL, or undefined if it is not one. */
+function originOf(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
 }

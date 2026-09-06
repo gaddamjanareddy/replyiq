@@ -39,3 +39,9 @@ temp/
 
 # Local database dumps (see scripts/backup-db.sh) - never commit these.
 backups/
+
+# The widget is a BUILD ARTIFACT (vite.widget.config.ts -> dist/widget.js).
+# It gets copied into apps/web/public only for local development, so the dev
+# server can serve it the way a customer's site would. Committing that copy
+# would ship a stale widget alongside the freshly built one.
+apps/web/public/widget.js

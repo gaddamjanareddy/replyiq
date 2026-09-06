@@ -109,3 +109,60 @@ describe('normalizeHost', () => {
     expect(normalizeHost('  Example.COM.  ')).toBe('example.com');
   });
 });
+
+describe('the Referer fallback', () => {
+  // Browsers omit Origin on a same-origin GET. Requiring it refused the
+  // widget's config request whenever the script and API share an origin,
+  // which is a real deployment shape - found on the landing page, where the
+  // POST worked and the GET silently 403'd.
+  it('uses Referer when Origin is absent', () => {
+    const d = checkWidgetOrigin(undefined, verified, {
+      referer: 'https://shop.example.com/pricing?from=nav',
+    });
+    expect(d.allowed).toBe(true);
+  });
+
+  it('uses only the origin of the Referer, discarding the path', () => {
+    // Which page asked is none of our business, and paths carry query strings
+    // that may contain anything.
+    expect(
+      checkWidgetOrigin(undefined, verified, { referer: 'https://example.com/a/b/c?q=secret' })
+        .allowed,
+    ).toBe(true);
+  });
+
+  it('still refuses a Referer from an unverified site', () => {
+    expect(
+      checkWidgetOrigin(undefined, verified, { referer: 'https://competitor.test/page' }),
+    ).toEqual({ allowed: false, reason: 'not-verified' });
+  });
+
+  it('still refuses a suffix-confusion lookalike via Referer', () => {
+    expect(
+      checkWidgetOrigin(undefined, verified, { referer: 'https://notexample.com/page' }).allowed,
+    ).toBe(false);
+  });
+
+  it('prefers Origin when both are present', () => {
+    // Origin is the stronger signal, so a mismatched Referer cannot widen it.
+    expect(
+      checkWidgetOrigin('https://competitor.test', verified, {
+        referer: 'https://example.com/page',
+      }).allowed,
+    ).toBe(false);
+  });
+
+  it('refuses when neither header is present', () => {
+    expect(checkWidgetOrigin(undefined, verified, { referer: undefined })).toEqual({
+      allowed: false,
+      reason: 'missing',
+    });
+  });
+
+  it('refuses a malformed Referer', () => {
+    expect(checkWidgetOrigin(undefined, verified, { referer: 'not a url' })).toEqual({
+      allowed: false,
+      reason: 'missing',
+    });
+  });
+});

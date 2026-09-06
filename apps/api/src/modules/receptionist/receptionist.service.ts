@@ -61,12 +61,16 @@ export class ReceptionistService {
     question: string,
     sessionKey?: string,
     previousQuestion?: string,
+    referer?: string,
   ): Promise<AskResult> {
     const { domains, mode } = await this.loadServingContext(businessId);
 
     // TEST mode businesses may be developed against from localhost; LIVE ones
     // never can. See widget-origin.ts.
-    const decision = checkWidgetOrigin(origin, domains, { allowLocalhost: mode === 'TEST' });
+    const decision = checkWidgetOrigin(origin, domains, {
+      allowLocalhost: mode === 'TEST',
+      referer,
+    });
 
     if (!decision.allowed) {
       // One neutral refusal regardless of reason. Distinguishing "not verified"
@@ -191,9 +195,13 @@ export class ReceptionistService {
   async config(
     businessId: string,
     origin: string | undefined,
+    referer?: string,
   ): Promise<{ businessName: string; mode: 'LIVE' | 'TEST'; greeting: string }> {
     const { domains, mode, businessName } = await this.loadServingContext(businessId);
-    const decision = checkWidgetOrigin(origin, domains, { allowLocalhost: mode === 'TEST' });
+    const decision = checkWidgetOrigin(origin, domains, {
+      allowLocalhost: mode === 'TEST',
+      referer,
+    });
     if (!decision.allowed) {
       throw codedForbidden(
         ErrorCode.WIDGET_ORIGIN_NOT_ALLOWED,

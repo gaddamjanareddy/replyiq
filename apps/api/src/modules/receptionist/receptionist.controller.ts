@@ -31,8 +31,13 @@ export class ReceptionistController {
   /** What the widget needs to render before anyone has asked anything. */
   @Get('config')
   @UseGuards(ThrottlerGuard)
-  config(@Param('businessId') businessId: string, @Headers('origin') origin?: string) {
-    return this.receptionist.config(businessId, origin);
+  config(
+    @Param('businessId') businessId: string,
+    @Headers('origin') origin?: string,
+    // Browsers omit Origin on a same-origin GET; Referer covers that case.
+    @Headers('referer') referer?: string,
+  ) {
+    return this.receptionist.config(businessId, origin, referer);
   }
 
   /**
@@ -49,6 +54,7 @@ export class ReceptionistController {
     @Param('businessId') businessId: string,
     @Body() dto: AskDto,
     @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
   ) {
     return this.receptionist.ask(
       businessId,
@@ -56,6 +62,7 @@ export class ReceptionistController {
       dto.question,
       dto.sessionKey,
       dto.previousQuestion,
+      referer,
     );
   }
 }
