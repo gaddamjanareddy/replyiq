@@ -9,7 +9,20 @@ Not yet implemented. Ordered by what should be fixed first.
 
 ---
 
-## 1. There is no password reset. At all. — **blocker**
+## 1. ~~There is no password reset. At all.~~ — **DONE (2026-09-06)**
+
+Built: request → emailed single-use token → set new password, with expiry,
+session revocation on completion, and no account-enumeration leak. Three
+transports (`log`, `resend`, `smtp`) because the cheapest option depends on
+whether the operator has a sending domain — `smtp` needs none, so a plain
+mailbox with an app password serves real users today. 9 integration tests.
+
+Still inert in production until an operator sets `EMAIL_TRANSPORT`; the
+endpoint declines honestly rather than promising an email it cannot send.
+
+Original finding follows.
+
+---
 
 Reported as a question ("is there a forgot password option?"). There is not:
 

@@ -134,14 +134,35 @@ services:
       # other feature - it simply declines reset requests with a clear message
       # instead of promising an email it cannot send.
       #
-      # To switch it on: create a Resend account (free tier is ample for
-      # transactional volume), verify a sending domain, then set EMAIL_TRANSPORT
-      # to "resend", paste the key into RESEND_API_KEY in the Render dashboard
-      # (sync: false keeps it out of this file and out of git), and set
-      # EMAIL_FROM to an address on the verified domain.
+      # Two ways to switch it on. Both are free; they differ in whether you
+      # have a domain.
+      #
+      #   EMAIL_TRANSPORT=resend  — needs a sending domain you control, so it
+      #     can be verified with DNS records. This is the right end state:
+      #     branded, and it scales. Note that until a domain is verified,
+      #     Resend delivers ONLY to your own account address, so it cannot
+      #     serve real users on its own. An onrender.com subdomain cannot be
+      #     verified — Render owns that zone, not you.
+      #
+      #   EMAIL_TRANSPORT=smtp    — needs no domain at all. Any mailbox with an
+      #     app password works (Gmail: smtp.gmail.com:587), reaches real
+      #     recipients immediately, and is capped around 500/day on a free
+      #     account. Unbranded, but it means users can actually recover their
+      #     accounts before a domain exists.
+      #
+      # Secrets use sync: false so they are entered in the Render dashboard and
+      # never land in this file or in git.
       - key: EMAIL_TRANSPORT
         value: "log"
       - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: ""
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: ""
+      - key: SMTP_PASSWORD
         sync: false
       - key: EMAIL_FROM
         value: ""

@@ -23,8 +23,18 @@ const envSchema = z.object({
    * refusing to start would take a running product offline over a capability
    * it never had. Password reset declines honestly instead.
    */
-  EMAIL_TRANSPORT: z.enum(['log', 'resend']).default('log'),
+  EMAIL_TRANSPORT: z.enum(['log', 'resend', 'smtp']).default('log'),
   RESEND_API_KEY: z.string().default(''),
+  /**
+   * SMTP, for sending from an ordinary mailbox when no sending domain is
+   * available. Gmail is smtp.gmail.com:587 with an App Password - a normal
+   * account password is rejected once 2-Step Verification is on, and Google
+   * removed "less secure app" access in May 2025.
+   */
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.string().default('587'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASSWORD: z.string().default(''),
   /** Envelope sender, e.g. 'ReplyIQ <noreply@yourdomain.com>'. */
   EMAIL_FROM: z.string().default(''),
   /**

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { ConfigService } from '@nestjs/config';
+import { createTransport } from 'nodemailer';
 
 /**
  * Transactional email.
@@ -15,6 +16,22 @@ import { ConfigService } from '@nestjs/config';
  * requiring a provider account to run the app locally would make the whole
  * auth flow untestable on a laptop. So the default transport logs the message
  * instead of sending it, and production is expected to configure a real one.
+ *
+ * ── Why three transports ──────────────────────────────────────────────────
+ * They solve genuinely different problems, and which one is cheapest depends
+ * on what the operator already has:
+ *
+ *   log     Development. The reset link has to be readable somewhere, and
+ *           stdout is that somewhere.
+ *   resend  Needs a sending domain you control. Branded and scales, so it is
+ *           the right end state - but Resend delivers only to the account
+ *           owner's own address until a domain is verified, and verifying one
+ *           requires DNS you control.
+ *   smtp    Any mailbox, including a plain Gmail account with an app
+ *           password. Unbranded and rate-limited (~500/day on free Gmail),
+ *           but it reaches real recipients with no domain at all - which is
+ *           the difference between a product whose users can recover their
+ *           accounts and one whose users cannot.
  *
  * `canDeliverEmail` exists because the failure mode is otherwise silent and
  * terrible: a deployed app that cheerfully accepts reset requests, logs them to
@@ -31,7 +48,7 @@ export interface EmailMessage {
 }
 
 /** Which transport is in use. `log` never sends anything. */
-export type EmailTransport = 'log' | 'resend';
+export type EmailTransport = 'log' | 'resend' | 'smtp';
 
 @Injectable()
 export class EmailService {
@@ -40,7 +57,11 @@ export class EmailService {
   constructor(private readonly configService: ConfigService) {}
 
   get transport(): EmailTransport {
-    return this.configService.get<string>('EMAIL_TRANSPORT') === 'resend' ? 'resend' : 'log';
+    const configured = this.configService.get<string>('EMAIL_TRANSPORT');
+    // Anything unrecognised falls back to `log`, which cannot send. Failing
+    // closed matters: a typo in the transport name must not quietly become a
+    // working sender running on the wrong configuration.
+    return configured === 'resend' || configured === 'smtp' ? configured : 'log';
   }
 
   /**
@@ -53,6 +74,10 @@ export class EmailService {
   async send(message: EmailMessage): Promise<void> {
     if (this.transport === 'resend') {
       await this.sendViaResend(message);
+      return;
+    }
+    if (this.transport === 'smtp') {
+      await this.sendViaSmtp(message);
       return;
     }
 
@@ -101,6 +126,55 @@ export class EmailService {
       throw new Error(`email provider rejected the message (${response.status})`);
     }
   }
+
+  /**
+   * Send over SMTP.
+   *
+   * The point of this path is that it needs no domain: an ordinary mailbox
+   * with an app password reaches real recipients today, which is what makes
+   * account recovery genuinely work for a product that has not bought a domain
+   * yet.
+   *
+   * A fresh connection per message, deliberately. Password reset is
+   * low-volume and bursty, so a pooled connection would spend nearly all its
+   * life idle and occasionally dead - and discovering a stale socket during
+   * the one request that mattered is worse than reconnecting every time.
+   */
+  private async sendViaSmtp(message: EmailMessage): Promise<void> {
+    const host = this.configService.get<string>('SMTP_HOST');
+    const user = this.configService.get<string>('SMTP_USER');
+    const pass = this.configService.get<string>('SMTP_PASSWORD');
+    const from = this.configService.get<string>('EMAIL_FROM');
+    if (!host || !user || !pass || !from) {
+      throw new Error(
+        'EMAIL_TRANSPORT=smtp requires SMTP_HOST, SMTP_USER, SMTP_PASSWORD and EMAIL_FROM',
+      );
+    }
+
+    const port = Number(this.configService.get<string>('SMTP_PORT') ?? '587');
+    const transporter = createTransport({
+      host,
+      port,
+      // 465 is implicit TLS; 587 begins in plaintext and upgrades via
+      // STARTTLS. Getting this pairing wrong produces a connection that hangs
+      // rather than a clear error, so it is derived from the port rather than
+      // left as one more thing to configure inconsistently.
+      secure: port === 465,
+      auth: { user, pass },
+    });
+
+    try {
+      await transporter.sendMail({
+        from,
+        to: message.to,
+        subject: message.subject,
+        text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+      });
+    } finally {
+      transporter.close();
+    }
+  }
 }
 
 /**
@@ -115,7 +189,24 @@ export function canDeliverEmail(env: NodeJS.ProcessEnv = process.env): boolean {
   // The log transport "delivers" to stdout, which is genuinely useful in
   // development - the reset link has to be readable somewhere.
   if (env.NODE_ENV !== 'production') return true;
-  return env.EMAIL_TRANSPORT === 'resend' && Boolean(env.RESEND_API_KEY) && Boolean(env.EMAIL_FROM);
+
+  // Every credential a transport needs is checked here rather than at send
+  // time. A half-configured mailer would otherwise pass this gate, have the
+  // request accepted, and fail in the background - which is precisely the
+  // "told to check an inbox that never receives anything" trap this exists to
+  // prevent.
+  if (env.EMAIL_TRANSPORT === 'resend') {
+    return Boolean(env.RESEND_API_KEY) && Boolean(env.EMAIL_FROM);
+  }
+  if (env.EMAIL_TRANSPORT === 'smtp') {
+    return (
+      Boolean(env.SMTP_HOST) &&
+      Boolean(env.SMTP_USER) &&
+      Boolean(env.SMTP_PASSWORD) &&
+      Boolean(env.EMAIL_FROM)
+    );
+  }
+  return false;
 }
 
 /**
@@ -135,6 +226,7 @@ export function warnIfEmailNotConfiguredInProduction(
   log(
     'WARNING: no email transport is configured, so password reset is DISABLED. ' +
       'Requests to it are declined with a clear message rather than silently dropped. ' +
-      'Set EMAIL_TRANSPORT=resend, RESEND_API_KEY and EMAIL_FROM to enable it.',
+      'Enable it with either EMAIL_TRANSPORT=resend (RESEND_API_KEY, EMAIL_FROM) or ' +
+      'EMAIL_TRANSPORT=smtp (SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM).',
   );
 }

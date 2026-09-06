@@ -41,6 +41,36 @@ describe('canDeliverEmail', () => {
       }),
     ).toBe(true);
   });
+
+  const smtp = {
+    NODE_ENV: 'production',
+    EMAIL_TRANSPORT: 'smtp',
+    SMTP_HOST: 'smtp.gmail.com',
+    SMTP_USER: 'someone@gmail.com',
+    SMTP_PASSWORD: 'app-password',
+    EMAIL_FROM: 'ReplyIQ <someone@gmail.com>',
+  };
+
+  it('is true in production with a fully configured SMTP transport', () => {
+    // The no-domain path: an ordinary mailbox reaching real recipients.
+    expect(canDeliverEmail(smtp)).toBe(true);
+  });
+
+  it.each(['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'EMAIL_FROM'])(
+    'is false in production when SMTP is missing %s',
+    (missing) => {
+      // Each credential is checked up front rather than at send time, so a
+      // half-configured mailer cannot accept a request it will drop later.
+      const env = { ...smtp } as Record<string, string>;
+      delete env[missing];
+      expect(canDeliverEmail(env)).toBe(false);
+    },
+  );
+
+  it('is false for an unrecognised transport name', () => {
+    // Fails closed: a typo must not be treated as a working sender.
+    expect(canDeliverEmail({ ...smtp, EMAIL_TRANSPORT: 'smpt' })).toBe(false);
+  });
 });
 
 describe('warnIfEmailNotConfiguredInProduction', () => {
