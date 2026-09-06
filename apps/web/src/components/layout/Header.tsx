@@ -29,7 +29,16 @@ export function Header() {
 
   return (
     <header
-      className={`glass sticky top-0 z-20 border-b px-4 py-3.5 transition-shadow duration-200 sm:px-6 sm:py-4 ${
+      // Opaque, deliberately. A frosted header was tried and reverted: page
+      // content scrolling underneath stayed legible through it and collided
+      // with the header's own title. Blur does not rescue that - a large bold
+      // heading blurred at 24px is still a readable smear landing behind text
+      // of a similar size.
+      //
+      // And when the page is NOT scrolled there is nothing behind the header
+      // but a uniform background, so the material shows nothing anyway. It was
+      // paying a legibility cost for an effect that is invisible at rest.
+      className={`sticky top-0 z-20 border-b bg-surface px-4 py-3.5 transition-shadow duration-200 sm:px-6 sm:py-4 ${
         scrolled ? 'border-ink-200 shadow-card' : 'border-transparent'
       }`}
     >

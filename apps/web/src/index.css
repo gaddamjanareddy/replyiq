@@ -375,11 +375,31 @@
    * `saturate` is what separates this from a plain blur. Blurring alone
    * washes colour out and the panel reads as dirty grey; pushing saturation
    * back up is what makes it read as glass rather than fog.
+   *
+   * ── Where this is and is not used, and why ────────────────────────────
+   * Currently: dialogs only. The header and sidebar were frosted first and
+   * both were reverted.
+   *
+   * The header failed for a reason worth remembering. Page content scrolling
+   * underneath stayed legible through it and collided with the header's own
+   * title. Blur does not rescue that - a large bold heading blurred at 24px
+   * is still a readable smear, and it lands directly behind text of a similar
+   * size. Raising opacity to 90% made the ghost fainter without removing it.
+   *
+   * And the effect was invisible when it was safe: with the page unscrolled
+   * there is nothing behind the header but a uniform background, so the
+   * material showed nothing at all. It was paying a real legibility cost for
+   * an effect only visible in the one situation where it caused harm.
+   *
+   * Glass earns its place over a DELIBERATELY defocused backdrop - a dialog
+   * above a blurred scrim - where the depth is the point and nothing behind
+   * it is meant to be read. That is the same principle as keeping glass off
+   * content: transparency is decoration, and legibility outranks it.
    */
   .glass {
-    background-color: color-mix(in oklab, var(--color-surface) 72%, transparent);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background-color: color-mix(in oklab, var(--color-surface) 90%, transparent);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
   }
 
   /**
