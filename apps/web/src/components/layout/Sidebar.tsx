@@ -103,7 +103,7 @@ export function Sidebar() {
         }`}
       >
         <div className="flex items-center gap-2.5 border-b border-ink-200 px-6 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 shadow-raised">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-fill to-brand-fill-deep shadow-raised">
             <span className="text-sm font-bold text-white">RQ</span>
           </div>
           <span className="text-title text-lg font-semibold text-ink-900">ReplyIQ</span>

@@ -89,6 +89,19 @@
   --color-surface-sunken: oklch(0.985 0.002 247.8);
   --color-surface-raised: oklch(1 0 0);
   --color-hairline: oklch(0.928 0.006 264.5);
+
+  /* ── Brand fills that carry white text ──────────────────────────────────
+     A solid blue with white on top has ONE job, and the numbered ramp cannot
+     do it in both themes: brand-500 is light enough to fail in light mode
+     (3.76:1) and brand-700 is the LINK colour in dark mode, so it is pale
+     there and white on it measured 2:1.
+
+     A gradient built from ramp steps therefore fails at one end or the other
+     depending on the theme. These two are near-identical in both themes on
+     purpose — a fill that white sits on does not need to change when the page
+     around it does. */
+  --color-brand-fill: oklch(0.546 0.245 262.9);
+  --color-brand-fill-deep: oklch(0.455 0.21 264.5);
 }
 
 /**
@@ -111,10 +124,14 @@
  *      bigger blur. Each level up is a small lightness step; shadows stay only
  *      to soften the edge.
  *
- *   3. ACCENTS MOVE UP THE RAMP. brand-600 is tuned for contrast against
- *      white; on a dark ground the same colour is muddy and fails contrast.
- *      The whole brand ramp shifts lighter and slightly desaturates, because
- *      saturated blues glow unpleasantly against dark.
+ *   3. ACCENTS MOVE BY ROLE, NOT UNIFORMLY. The tempting version of this rule
+ *      is "shift the whole accent ramp lighter for dark", and it is wrong: it
+ *      is right for an accent used as TEXT and destroys an accent used as a
+ *      solid FILL. Measured, lightening brand-600 put white-on-blue at 2.4:1,
+ *      worse than the light theme. So the low end darkens for subtle fills,
+ *      600 stays a mid blue white can sit on, and only the high end moves up,
+ *      where links and labels live. Solid fills that always carry white text
+ *      use `--color-brand-fill*`, which barely moves between themes at all.
  *
  * The `ink` scale keeps its meaning in both themes - ink-50 is always the page,
  * ink-900 is always primary text - so `text-ink-500` still means "muted" and no
@@ -173,6 +190,11 @@
     --shadow-raised: 0 4px 10px -2px rgb(0 0 0 / 0.5), 0 2px 6px -2px rgb(0 0 0 / 0.35);
     --shadow-overlay: 0 24px 32px -8px rgb(0 0 0 / 0.65), 0 10px 12px -6px rgb(0 0 0 / 0.4);
     --shadow-focus: 0 0 0 3px oklch(0.46 0.135 260);
+
+    /* Barely moved from the light values. A fill whose whole purpose is to
+       carry white text has the same requirement in both themes. */
+    --color-brand-fill: oklch(0.565 0.22 260);
+    --color-brand-fill-deep: oklch(0.475 0.19 262);
 
     /* Status colours, remapped for a dark ground.
        Tailwind's defaults are tuned for dark-on-light: `text-red-600` is a
