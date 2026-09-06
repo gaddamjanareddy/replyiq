@@ -21,6 +21,12 @@ export enum ErrorCode {
    *  property of the deployment, not of any account. */
   AUTH_RESET_UNAVAILABLE = 'AUTH_RESET_UNAVAILABLE',
 
+  /** The widget asked from a site this business has not verified — or the
+   *  business does not exist, or has no verified domain at all. Deliberately
+   *  ONE code for all of those: distinguishing them would turn the public
+   *  endpoint into a directory of who uses the product and on which domains. */
+  WIDGET_ORIGIN_NOT_ALLOWED = 'WIDGET_ORIGIN_NOT_ALLOWED',
+
   // Authorization / resources
   AUTHZ_FORBIDDEN = 'AUTHZ_FORBIDDEN',
   RESOURCE_NOT_FOUND = 'RESOURCE_NOT_FOUND',

@@ -48,6 +48,41 @@ async function bootstrap() {
    * is a poor trade for the blast radius.
    */
 
+  /**
+   * CORS for the public receptionist widget.
+   *
+   * Registered BEFORE @fastify/cors so it can answer the preflight itself.
+   * The widget runs on each customer's own website, so its origin is different
+   * for every business and unknowable at boot — the fixed allow-list below
+   * cannot express that, and without this the browser blocks the request
+   * before any of our code runs.
+   *
+   * `*` is correct here rather than lax. CORS is NOT the authorization
+   * boundary for these routes: ReceptionistService checks the Origin header
+   * against the business's verified domains and returns 403 otherwise. This
+   * endpoint takes no cookies and no Authorization header, so a permissive
+   * ACAO grants a caller nothing they could not get with curl — and it is
+   * exactly the reason `credentials` is not set here.
+   */
+  const fastify = app.getHttpAdapter().getInstance();
+  fastify.addHook('onRequest', (request, reply, done) => {
+    if (!request.url.startsWith('/api/v1/receptionist/')) return done();
+
+    reply.header('access-control-allow-origin', '*');
+    reply.header('access-control-allow-methods', 'GET, POST, OPTIONS');
+    reply.header('access-control-allow-headers', 'Content-Type');
+    reply.header('access-control-max-age', '86400');
+    // Origin decides the answer, so caches must not serve one site's response
+    // to another.
+    reply.header('vary', 'Origin');
+
+    if (request.method === 'OPTIONS') {
+      void reply.code(204).send();
+      return;
+    }
+    return done();
+  });
+
   // Render's blueprint can inject another service's address, but it supplies a
   // bare hostname ("replyiq-web.onrender.com") while CORS matches full origins.
   // Normalising here means the deployment config can stay declarative and

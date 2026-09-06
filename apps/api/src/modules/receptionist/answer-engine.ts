@@ -51,9 +51,18 @@ export interface Answer {
  * Deliberately takes the passages rather than fetching them, so retrieval and
  * grounding live in one place and an engine cannot go around them.
  */
+export interface AnswerOptions {
+  /**
+   * True when retrieval had to fall back to matching ANY term rather than all
+   * of them. Such a hit is a plausible guess, not a found answer, so it is
+   * always offered with a hedge however well it scored.
+   */
+  broadened?: boolean;
+}
+
 export interface AnswerEngine {
   readonly name: string;
-  answer(question: string, passages: RetrievedPassage[]): Promise<Answer>;
+  answer(question: string, passages: RetrievedPassage[], options?: AnswerOptions): Promise<Answer>;
 }
 
 /**
@@ -81,7 +90,11 @@ export const DONT_KNOW_TEXT =
 export class RetrievalAnswerEngine implements AnswerEngine {
   readonly name = 'retrieval';
 
-  answer(question: string, passages: RetrievedPassage[]): Promise<Answer> {
+  answer(
+    question: string,
+    passages: RetrievedPassage[],
+    options: AnswerOptions = {},
+  ): Promise<Answer> {
     const relevant = passages.filter((p) => p.rank > RELEVANCE_FLOOR);
 
     if (relevant.length === 0) {
@@ -98,29 +111,43 @@ export class RetrievalAnswerEngine implements AnswerEngine {
       return Promise.resolve({ confidence: 'unknown', text: DONT_KNOW_TEXT, citations: [] });
     }
 
-    // A clear winner is answered plainly. A weak-but-present match is offered
-    // with a hedge, because presenting a marginal hit in the same confident
-    // voice as a strong one is how a visitor gets misled.
-    const confident = best.rank >= CONFIDENT_RANK;
+    // A clear winner is answered plainly. Anything else is offered with a
+    // hedge, because presenting a marginal hit in the same confident voice as
+    // a strong one is how a visitor gets misled.
     const runnerUp = rest[0];
     const ambiguous = runnerUp !== undefined && best.rank - runnerUp.rank < 0.01;
-
-    const text = confident && !ambiguous ? best.content : `${hedge(question)}\n\n${best.content}`;
+    // A broadened match can score highly on one incidental word, so its rank
+    // carries no information about relevance and it must never be presented
+    // as found.
+    const sure = best.rank >= CONFIDENT_RANK && !ambiguous && !options.broadened;
 
     return Promise.resolve({
-      confidence: confident && !ambiguous ? 'answered' : 'unsure',
-      text,
+      confidence: sure ? 'answered' : 'unsure',
+      text: sure ? best.content : `${hedge(question)}\n\n${best.content}`,
       citations: relevant.slice(0, 3).map((p) => ({
         id: p.id,
         title: p.question ?? p.sourceTitle,
-        url: p.sourceUrl,
+        url: publicUrl(p.sourceUrl),
       })),
     });
   }
 }
 
 /**
- * The hedge shown before a marginal match.
+ * Hide internal source sentinels from the visitor.
+ *
+ * Owner-written answers are stored against `internal:owner-authored`, which is
+ * a key, not a link. Passing it through would put a nonsense URL in the
+ * "where did this come from" UI, and on a visitor-facing surface that reads as
+ * the product leaking its own plumbing.
+ */
+function publicUrl(url: string | null): string | null {
+  if (!url) return null;
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
+/**
+ * The hedge shown before anything less than a clear match.
  *
  * Phrased as the receptionist being unsure, not as the visitor having asked
  * badly. "I'm not certain this is what you meant" invites a correction;

@@ -131,3 +131,51 @@ describe('thresholds', () => {
     expect(CONFIDENT_RANK).toBeGreaterThan(RELEVANCE_FLOOR);
   });
 });
+
+describe('when retrieval had to broaden', () => {
+  // Broadened retrieval matches ANY term rather than all of them, so a hit can
+  // score highly on one incidental word. Its rank carries no information about
+  // relevance, and presenting it as found is exactly the invention this whole
+  // design exists to prevent.
+  it('never says "answered", however high the rank', async () => {
+    const answer = await engine.answer('do you sell saturday bicycles', [passage({ rank: 0.9 })], {
+      broadened: true,
+    });
+    expect(answer.confidence).toBe('unsure');
+    expect(answer.text).toMatch(/not certain/i);
+  });
+
+  it('still answers confidently when retrieval did not need to broaden', async () => {
+    const answer = await engine.answer('hours', [passage({ rank: 0.9 })], { broadened: false });
+    expect(answer.confidence).toBe('answered');
+  });
+
+  it('still admits ignorance when a broadened search found nothing usable', async () => {
+    const answer = await engine.answer('anything', [], { broadened: true });
+    expect(answer.confidence).toBe('unknown');
+    expect(answer.text).toBe(DONT_KNOW_TEXT);
+  });
+});
+
+describe('citation urls', () => {
+  it('hides the internal sentinel used for owner-written answers', async () => {
+    // `internal:owner-authored` is a storage key, not a link. Passing it to a
+    // visitor-facing surface would leak the product's own plumbing.
+    const answer = await engine.answer('hours', [
+      passage({ sourceUrl: 'internal:owner-authored' }),
+    ]);
+    expect(answer.citations[0]?.url).toBeNull();
+  });
+
+  it('keeps a real page url', async () => {
+    const answer = await engine.answer('hours', [passage({ sourceUrl: 'https://x.test/about' })]);
+    expect(answer.citations[0]?.url).toBe('https://x.test/about');
+  });
+
+  it('drops any non-http scheme', async () => {
+    for (const url of ['javascript:alert(1)', 'data:text/html,x', 'file:///etc/passwd']) {
+      const answer = await engine.answer('hours', [passage({ sourceUrl: url })]);
+      expect(answer.citations[0]?.url).toBeNull();
+    }
+  });
+});

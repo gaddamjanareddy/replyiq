@@ -12,6 +12,7 @@ import { BusinessModule } from './modules/business/business.module.js';
 import { DomainModule } from './modules/domain/domain.module.js';
 import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module.js';
+import { ReceptionistModule } from './modules/receptionist/receptionist.module.js';
 import { DatabaseModule } from './shared/database/database.module.js';
 import { AuditModule } from './infrastructure/audit/audit.module.js';
 
@@ -67,6 +68,7 @@ import { AuditModule } from './infrastructure/audit/audit.module.js';
     DomainModule,
     OnboardingModule,
     KnowledgeModule,
+    ReceptionistModule,
   ],
 })
 export class AppModule {}

@@ -1,5 +1,7 @@
 export { prisma } from './client.js';
-export { PrismaClient } from '@prisma/client';
+// `Prisma` carries the query-building helpers (Prisma.sql, Prisma.raw) that
+// callers need to compose parameterised raw SQL safely.
+export { Prisma, PrismaClient } from '@prisma/client';
 export type {
   Organization,
   User,

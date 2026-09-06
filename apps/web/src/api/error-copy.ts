@@ -74,6 +74,17 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
     retryable: false,
     tone: 'warning',
   },
+  WIDGET_ORIGIN_NOT_ALLOWED: {
+    title: 'This receptionist is not available on this site.',
+    // Deliberately says nothing about WHY. The API returns this one code for
+    // an unverified origin, an unknown business and one with no verified
+    // domain, so that a public endpoint cannot be used to work out who uses
+    // the product and on which domains. The copy must not undo that.
+    detail: 'Check that the widget is installed on a website you have verified.',
+    action: 'Manage websites',
+    retryable: false,
+    tone: 'error',
+  },
   AUTH_RESET_UNAVAILABLE: {
     title: 'Password reset is unavailable right now.',
     // Honest rather than reassuring. The alternative - accepting the request
