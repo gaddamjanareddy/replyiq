@@ -1,5 +1,11 @@
 # ReplyIQ Documentation System
 
+> **Start with `CLAUDE.md` in the repo root.** It is the entry point for anyone
+> picking this project up, and it carries the rules that are load-bearing.
+> `PROJECT_STATUS.md` has the current state; the older `product-spec/` files are
+> specifications written *before* implementation, so where a spec and the code
+> disagree, the code and its commit message are the truth.
+
 > **Status:** Superseded
 > **Last Updated:** 2026-08-18
 > **Superseded By:** `docs/product-spec/00-MASTER-INDEX.md`
