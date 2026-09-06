@@ -74,6 +74,19 @@ export class ReceptionistService {
       );
     }
 
+    return this.answerFor(businessId, question, mode);
+  }
+
+  /**
+   * Retrieval and answering, shared by the public widget and the owner's
+   * preview. Extracted so the two doors cannot drift: a preview that answers
+   * differently from the live widget is worse than no preview.
+   */
+  private async answerFor(
+    businessId: string,
+    question: string,
+    mode: 'LIVE' | 'TEST',
+  ): Promise<AskResult> {
     const trimmed = question.trim().slice(0, MAX_QUESTION_LENGTH);
     if (trimmed.length === 0) {
       return { mode, confidence: 'unknown', text: NO_KNOWLEDGE_TEXT, citations: [] };
@@ -94,6 +107,20 @@ export class ReceptionistService {
 
     const answer = await this.engine.answer(trimmed, passages, { broadened });
     return { ...answer, mode };
+  }
+
+  /**
+   * Answer as the owner, from inside the dashboard.
+   *
+   * Deliberately skips the origin check and NOTHING else: the caller has
+   * already proved who they are with a session and the organization guard, so
+   * the browser-set Origin adds nothing. Retrieval, grounding, the relevance
+   * floor and the refusal to invent are all identical — a preview that behaved
+   * better than the real thing would be worse than no preview at all.
+   */
+  async preview(businessId: string, question: string): Promise<AskResult> {
+    const { mode } = await this.loadServingContext(businessId);
+    return this.answerFor(businessId, question, mode);
   }
 
   /**

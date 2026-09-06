@@ -9,6 +9,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/settings': 'Business Settings',
   '/dashboard/domains': 'Domains',
   '/dashboard/knowledge': 'Knowledge',
+  '/dashboard/widget': 'Your receptionist',
 };
 
 export function Header() {

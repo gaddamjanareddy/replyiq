@@ -10,6 +10,7 @@ import { DomainsPage } from './pages/DomainsPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { WidgetPage } from './pages/WidgetPage';
 
 export function App() {
   return (
@@ -26,6 +27,7 @@ export function App() {
           <Route path="/dashboard/settings" element={<BusinessSettingsPage />} />
           <Route path="/dashboard/domains" element={<DomainsPage />} />
           <Route path="/dashboard/knowledge" element={<KnowledgePage />} />
+          <Route path="/dashboard/widget" element={<WidgetPage />} />
         </Route>
       </Route>
 
