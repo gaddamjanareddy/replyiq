@@ -238,12 +238,17 @@ export function DashboardPage() {
                 description="One line of code, and your receptionist starts answering."
                 to="/dashboard/widget"
               />
-              <NextStep
-                done={Boolean(summary && summary.asked > 0 && summary.leadsWaiting === 0)}
-                title="Reply to anyone waiting"
-                description="When it cannot answer, it takes their number instead. Those people are expecting to hear back."
-                to="/dashboard/leads"
-              />
+              {/* Only once somebody has actually visited. Shown to a brand-new
+                  owner it is a task they cannot do, linking to an empty page —
+                  a checklist that lists impossible work stops being read. */}
+              {summary && summary.asked > 0 && (
+                <NextStep
+                  done={summary.leadsWaiting === 0}
+                  title="Reply to anyone waiting"
+                  description="When it cannot answer, it takes their number instead. Those people are expecting to hear back."
+                  to="/dashboard/leads"
+                />
+              )}
             </ul>
           </CardBody>
         </Card>
