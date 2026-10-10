@@ -141,7 +141,7 @@ export class LeadService {
   /** The owner's list. Authorized by the organization guard on the route. */
   async list(businessId: string): Promise<{
     leads: LeadView[];
-    counts: { new: number; contacted: number; archived: number };
+    counts: { new: number; contacted: number; archived: number; waiting: number };
   }> {
     const [rows, grouped] = await Promise.all([
       this.prisma.receptionistLead.findMany({
@@ -176,9 +176,23 @@ export class LeadService {
     return {
       leads: rows,
       counts: {
+        // The three tab counts are totals, because they say how many rows are
+        // behind each filter and the rows themselves include test leads.
         new: count('NEW'),
         contacted: count('CONTACTED'),
         archived: count('ARCHIVED'),
+        /**
+         * The headline "N waiting", which is a different question: how many
+         * real people are expecting a call.
+         *
+         * It must agree with the dashboard, and briefly did not — the page
+         * announced "9 waiting" in a celebratory green badge while the
+         * dashboard showed nothing, because one counted test leads and the
+         * other did not. Two screens disagreeing about one number is worse
+         * than either number being wrong, so both now come from this
+         * definition. Found by looking at the two pages, not at the code.
+         */
+        waiting: await this.newCount(businessId),
       },
     };
   }
@@ -270,10 +284,17 @@ export class LeadService {
         ? `[Test] New enquiry from your website`
         : `New enquiry from your website — ${lead.name ?? lead.contact}`;
 
-      const lines = [
+      /**
+       * `undefined` marks a line that might not apply; `''` is a deliberate
+       * blank. They are filtered differently on purpose: a `filter(Boolean)`
+       * over both was tried, and it silently ate every paragraph break, so the
+       * email arrived as one dense unreadable block. Found by reading a real
+       * one out of the log transport — the code looked right.
+       */
+      const lines: Array<string | undefined> = [
         lead.isTest
           ? 'This is a TEST enquiry, captured while your receptionist was in test mode. It is not a real customer.'
-          : `Someone asked your receptionist something it could not answer, and left their details.`,
+          : 'Someone asked your receptionist something it could not answer, and left their details.',
         '',
         `Name:    ${lead.name ?? '(not given)'}`,
         `Contact: ${lead.contact}`,
@@ -288,19 +309,17 @@ export class LeadService {
         // Two calls to action in the order they matter: ring the person, then
         // write the answer so the next one never has to ask.
         'Call or write to them first — they were asking just now.',
-        webUrl ? `Your enquiries: ${webUrl}/dashboard/leads` : '',
+        webUrl ? `Your enquiries: ${webUrl}/dashboard/leads` : undefined,
         lead.question && webUrl
           ? `Answer this once and the receptionist will handle it next time: ${webUrl}/dashboard/knowledge`
-          : '',
+          : undefined,
         '',
         `— ReplyIQ, for ${businessName}`,
       );
 
-      await Promise.all(
-        recipients.map((r) =>
-          this.email.send({ to: r.email, subject, text: lines.filter(Boolean).join('\n') }),
-        ),
-      );
+      const text = lines.filter((line) => line !== undefined).join('\n');
+
+      await Promise.all(recipients.map((r) => this.email.send({ to: r.email, subject, text })));
     } catch (error) {
       this.logger.warn(
         `Could not notify the owner of a new lead: ${

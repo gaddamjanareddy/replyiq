@@ -267,6 +267,22 @@ describe('test leads', () => {
     await expect(leads.newCount(sandboxBusinessId)).resolves.toBe(0);
   });
 
+  /**
+   * The headline count on the enquiries page and the one on the dashboard are
+   * the same question and must give the same answer. They briefly did not.
+   */
+  it('excludes test leads from the headline count, agreeing with the dashboard', async () => {
+    await leads.capture(sandboxBusinessId, SANDBOX_ORIGIN, undefined, { contact: '9876543210' });
+    const { leads: stored, counts } = await leads.list(sandboxBusinessId);
+
+    expect(stored).toHaveLength(1);
+    // The row is in the list and behind the tab...
+    expect(counts.new).toBe(1);
+    // ...but nobody is actually waiting for a call.
+    expect(counts.waiting).toBe(0);
+    expect(counts.waiting).toBe(await leads.newCount(sandboxBusinessId));
+  });
+
   it('counts a real lead in the dashboard number', async () => {
     await leads.capture(businessId, LIVE_ORIGIN, undefined, { contact: '9876543210' });
     await expect(leads.newCount(businessId)).resolves.toBe(1);
@@ -326,6 +342,27 @@ describe('telling the owner', () => {
     // ring back knowing what it is about.
     expect(message.text).toContain('root canals on a Sunday');
     expect(message.text).toContain('https://app.example.com/dashboard/leads');
+  });
+
+  /**
+   * Regression. The body was assembled with `filter(Boolean)`, which dropped
+   * the deliberate `''` separators along with the conditional lines, and the
+   * email arrived as one dense block. Nothing failed, nothing logged, and the
+   * code read correctly — it was found by looking at a real message.
+   */
+  it('keeps the paragraph breaks, so the email is readable', async () => {
+    await leads.capture(businessId, LIVE_ORIGIN, undefined, {
+      contact: '9876543210',
+      name: 'Priya',
+      question: 'are you open on Sunday',
+    });
+    await email.waitForSend();
+
+    const { text } = first(email.sent);
+    expect(text).toContain('\n\n');
+    // The contact block is separated from the prose above and the question
+    // below it, which is the whole reason the blanks are there.
+    expect(text).toMatch(/\n\nName: {4}Priya\nContact: 9876543210\n\n/);
   });
 
   it('marks a test lead as a test in the subject', async () => {

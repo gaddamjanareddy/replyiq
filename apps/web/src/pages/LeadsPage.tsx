@@ -55,7 +55,7 @@ export function LeadsPage() {
   if (isLoading) return <PageSkeleton label="Loading your enquiries" />;
 
   const leads = data?.leads ?? [];
-  const counts = data?.counts ?? { new: 0, contacted: 0, archived: 0 };
+  const counts = data?.counts ?? { new: 0, contacted: 0, archived: 0, waiting: 0 };
   const shown = leads.filter((lead) => lead.status === tab);
   const countFor = (status: LeadStatus) =>
     status === 'NEW' ? counts.new : status === 'CONTACTED' ? counts.contacted : counts.archived;
@@ -76,9 +76,12 @@ export function LeadsPage() {
         title="Enquiries"
         subtitle="When the receptionist could not answer, it asked for a way to reach the visitor. These are the people waiting to hear from you."
         actions={
-          counts.new > 0 ? (
+          // `waiting`, not `new`: test leads are in the list below but are not
+          // people expecting a call, and a pulsing green badge celebrating the
+          // owner's own test traffic is a lie the dashboard would contradict.
+          counts.waiting > 0 ? (
             <Badge variant="success" dot pulse>
-              {pluralize(counts.new, 'waiting', 'waiting')}
+              {pluralize(counts.waiting, 'waiting', 'waiting')}
             </Badge>
           ) : undefined
         }

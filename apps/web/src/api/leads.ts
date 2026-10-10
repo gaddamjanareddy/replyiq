@@ -22,7 +22,15 @@ export interface Lead {
 
 export interface LeadsResponse {
   leads: Lead[];
-  counts: { new: number; contacted: number; archived: number };
+  counts: {
+    /** Totals behind each tab, test leads included — they are in the list. */
+    new: number;
+    contacted: number;
+    archived: number;
+    /** Real people expecting a call. Matches the dashboard's number, and is
+     *  the only one shown as a headline. */
+    waiting: number;
+  };
 }
 
 /**
