@@ -102,6 +102,18 @@
      around it does. */
   --color-brand-fill: oklch(0.546 0.245 262.9);
   --color-brand-fill-deep: oklch(0.455 0.21 264.5);
+
+  /* The same problem, for the status colours.
+     The amber/red/emerald ramps are INVERTED for dark (see the dark block),
+     so `bg-red-600 text-white` is a solid red button in light mode and a pale
+     pink one with unreadable white text in dark — measured 2.39:1 on the
+     "That is wrong" button, and 1.6:1 on amber. These three are for solid
+     fills that carry white text, and like the brand pair they barely move
+     between themes, because a fill white sits on should not care what the
+     page around it is doing. */
+  --color-danger-fill: oklch(0.52 0.206 25);
+  --color-warn-fill: oklch(0.52 0.13 75);
+  --color-success-fill: oklch(0.52 0.12 165);
 }
 
 /**
@@ -196,6 +208,13 @@
     --color-brand-fill: oklch(0.565 0.22 260);
     --color-brand-fill-deep: oklch(0.475 0.19 262);
 
+    /* Nudged, not inverted — these exist so white stays readable on them in
+       both themes. Slightly lighter here only so a solid button does not read
+       as a hole punched in a dark card. */
+    --color-danger-fill: oklch(0.545 0.2 25);
+    --color-warn-fill: oklch(0.545 0.125 75);
+    --color-success-fill: oklch(0.545 0.115 165);
+
     /* Status colours, remapped for a dark ground.
        Tailwind's defaults are tuned for dark-on-light: `text-red-600` is a
        deep red that reads as almost brown on a dark card and fails contrast,
@@ -229,6 +248,22 @@
     --color-violet-600: oklch(0.76 0.14 295);
     --color-violet-700: oklch(0.83 0.11 295);
     --color-violet-800: oklch(0.88 0.085 295);
+
+    /* The -900 step, which the block above originally missed.
+       It is the strongest text on a tinted panel — Banner titles use it for
+       all four tones, and an enquiry's question uses it on amber. Left
+       undefined it kept its LIGHT-theme value, which is nearly black, on a
+       `-50` background that this block had already inverted to nearly black:
+       measured 1.57:1 on the enquiries page. Role-preserving like every ramp
+       here, so "strongest" means lightest once the ground is dark. */
+    --color-red-900: oklch(0.91 0.065 25);
+    --color-amber-900: oklch(0.93 0.055 75);
+    --color-emerald-900: oklch(0.92 0.055 165);
+    --color-violet-900: oklch(0.92 0.055 295);
+
+    /* Border weight between -200 and -600; used by the dashboard's one
+       emphasised tile. */
+    --color-emerald-300: oklch(0.48 0.095 165);
   }
 
   /* The skeleton gradient is built from ink steps that both themes define, so

@@ -17,6 +17,8 @@ import { AskDto } from './dto/ask.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { UpdateLeadDto } from './dto/update-lead.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { RateAnswerDto } from './dto/rate-answer.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { LeadService } from './lead.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { OrganizationGuard } from '../auth/guards/organization.guard.js';
@@ -70,6 +72,27 @@ export class ReceptionistPreviewController {
       success: true,
       message: 'Receptionist insights',
       data: await this.receptionist.insights(businessId),
+    };
+  }
+
+  /**
+   * The owner's verdict on one answer.
+   *
+   * The only way the product learns it got something wrong. Nothing automatic
+   * can tell us — the answer was the owner's own published words, returned
+   * faithfully; whether those words were the right ones for that question is
+   * a judgement only they can make.
+   */
+  @Patch('questions/:questionId')
+  async rateAnswer(
+    @Param('businessId') businessId: string,
+    @Param('questionId') questionId: string,
+    @Body() dto: RateAnswerDto,
+  ) {
+    return {
+      success: true,
+      message: 'Answer rated',
+      data: await this.receptionist.rateAnswer(businessId, questionId, dto.verdict ?? null),
     };
   }
 

@@ -369,6 +369,16 @@ model PasswordResetToken {
 /// The question text itself is unavoidably visitor-authored free text, so it
 /// is treated as such: shown to the owner escaped, never interpolated
 /// anywhere, and swept after a retention window.
+/// The owner's verdict on an answer the receptionist gave.
+///
+/// Deliberately only two values and no "unsure". The question being asked is
+/// "would you have been happy for a customer to read that?", which has an
+/// answer; a third option is where every rating UI goes to die.
+enum AnswerVerdict {
+  GOOD
+  WRONG
+}
+
 model ReceptionistQuestion {
   id         String   @id @default(uuid()) @db.Uuid
   businessId String   @db.Uuid
@@ -383,13 +393,23 @@ model ReceptionistQuestion {
   itemId     String?  @db.Uuid
   /// Groups one visit's questions. Random, ephemeral, never linked to a person.
   sessionKey String   @db.VarChar(64)
-  createdAt  DateTime @default(now())
+
+  /// Set by the OWNER, never by the visitor and never inferred.
+  ///
+  /// Null means nobody has looked, which is not the same as "fine" — the
+  /// accuracy number in STRATEGY.md §5 is a share of the answers that were
+  /// actually reviewed, and treating unreviewed as good would make it say
+  /// whatever we wanted.
+  verdict   AnswerVerdict?
+  createdAt DateTime      @default(now())
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([businessId, createdAt])
   /// Serves the gap report directly: the unanswered questions, newest first.
   @@index([businessId, confidence, createdAt])
+  /// "Show me the ones I marked wrong", without scanning the history.
+  @@index([businessId, verdict])
   @@map("receptionist_questions")
 }
 

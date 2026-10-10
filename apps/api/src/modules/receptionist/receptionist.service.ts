@@ -199,15 +199,22 @@ export class ReceptionistService {
     answered: number;
     unanswered: number;
     knowledgeItems: number;
+    reviewed: number;
+    markedWrong: number;
   }> {
     const since = new Date(Date.now() - days * 86_400_000);
-    const [grouped, knowledgeItems] = await Promise.all([
+    const [grouped, knowledgeItems, verdicts] = await Promise.all([
       this.prisma.receptionistQuestion.groupBy({
         by: ['confidence'],
         where: { businessId, createdAt: { gte: since } },
         _count: { _all: true },
       }),
       this.prisma.knowledgeItem.count({ where: { businessId, deletedAt: null } }),
+      this.prisma.receptionistQuestion.groupBy({
+        by: ['verdict'],
+        where: { businessId, createdAt: { gte: since }, verdict: { not: null } },
+        _count: { _all: true },
+      }),
     ]);
 
     const count = (c: string) => grouped.find((g) => g.confidence === c)?._count._all ?? 0;
@@ -218,7 +225,41 @@ export class ReceptionistService {
       answered: count('answered') + count('unsure'),
       unanswered: count('unknown'),
       knowledgeItems,
+      /**
+       * Both numbers are reported, never just the percentage.
+       *
+       * "3% wrong" out of four reviewed answers is noise dressed as a
+       * measurement, and the owner cannot tell the difference without the
+       * denominator. The UI needs both to be honest about how much it knows.
+       */
+      reviewed: verdicts.reduce((n, g) => n + g._count._all, 0),
+      markedWrong: verdicts.find((g) => g.verdict === 'WRONG')?._count._all ?? 0,
     };
+  }
+
+  /**
+   * The owner's verdict on one answer.
+   *
+   * Scoped by businessId in the WHERE clause as well as by the route guard —
+   * the house rule for anything organization-scoped. Passing null clears a
+   * verdict, because someone who mis-taps should not be stuck having libelled
+   * their own receptionist.
+   */
+  async rateAnswer(
+    businessId: string,
+    questionId: string,
+    verdict: 'GOOD' | 'WRONG' | null,
+  ): Promise<{ id: string; verdict: 'GOOD' | 'WRONG' | null }> {
+    const updated = await this.prisma.receptionistQuestion.updateMany({
+      where: { id: questionId, businessId },
+      data: { verdict },
+    });
+
+    if (updated.count === 0) {
+      throw codedNotFound(ErrorCode.RESOURCE_NOT_FOUND, 'That question no longer exists.');
+    }
+
+    return { id: questionId, verdict };
   }
 
   /**
@@ -233,7 +274,17 @@ export class ReceptionistService {
     days = 30,
   ): Promise<{
     gaps: Array<{ question: string; askedAt: Date; timesAsked: number }>;
-    recent: Array<{ question: string; confidence: string; askedAt: Date }>;
+    recent: Array<{
+      id: string;
+      question: string;
+      confidence: string;
+      askedAt: Date;
+      verdict: 'GOOD' | 'WRONG' | null;
+      /** The knowledge item the answer came from, so the owner is judging an
+       *  answer rather than guessing at one. Null if the item has since been
+       *  deleted, or if nothing answered. */
+      answeredWith: { id: string; question: string | null; content: string } | null;
+    }>;
     totals: { asked: number; answered: number; unsure: number; unknown: number };
   }> {
     const since = new Date(Date.now() - days * 86_400_000);
@@ -243,7 +294,14 @@ export class ReceptionistService {
         where: { businessId, createdAt: { gte: since } },
         orderBy: { createdAt: 'desc' },
         take: 50,
-        select: { question: true, confidence: true, createdAt: true },
+        select: {
+          id: true,
+          question: true,
+          confidence: true,
+          createdAt: true,
+          verdict: true,
+          itemId: true,
+        },
       }),
       this.prisma.receptionistQuestion.groupBy({
         by: ['confidence'],
@@ -251,6 +309,25 @@ export class ReceptionistService {
         _count: { _all: true },
       }),
     ]);
+
+    /**
+     * The items that produced these answers, fetched once.
+     *
+     * A Prisma relation would be the obvious move, and there deliberately
+     * isn't one: `itemId` is nulled rather than cascaded when an item is
+     * deleted (see the model), so history survives the owner tidying their
+     * knowledge base. One `in` query over the ids that are present costs a
+     * single round trip and keeps that property.
+     */
+    const itemIds = [...new Set(rows.map((r) => r.itemId).filter((id): id is string => !!id))];
+    const items =
+      itemIds.length > 0
+        ? await this.prisma.knowledgeItem.findMany({
+            where: { id: { in: itemIds }, businessId, deletedAt: null },
+            select: { id: true, question: true, content: true },
+          })
+        : [];
+    const answeringItems = new Map(items.map((i) => [i.id, i]));
 
     const count = (c: string) =>
       grouped.find((g) => g.confidence === c)?._count._all ?? 0;
@@ -273,9 +350,12 @@ export class ReceptionistService {
         timesAsked: g._count._all,
       })),
       recent: rows.map((r) => ({
+        id: r.id,
         question: r.question,
         confidence: r.confidence,
         askedAt: r.createdAt,
+        verdict: r.verdict,
+        answeredWith: (r.itemId && answeringItems.get(r.itemId)) || null,
       })),
       totals: {
         asked: grouped.reduce((n, g) => n + g._count._all, 0),

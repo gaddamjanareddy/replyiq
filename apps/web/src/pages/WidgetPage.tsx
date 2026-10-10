@@ -28,10 +28,104 @@ interface PreviewAnswer {
   mode: 'LIVE' | 'TEST';
 }
 
+type Verdict = 'GOOD' | 'WRONG' | null;
+
+interface RecentQuestion {
+  id: string;
+  question: string;
+  confidence: string;
+  askedAt: string;
+  verdict: Verdict;
+  /** The knowledge item the answer came from. Null once it is deleted. */
+  answeredWith: { id: string; question: string | null; content: string } | null;
+}
+
 interface Insights {
   gaps: Array<{ question: string; askedAt: string; timesAsked: number }>;
-  recent: Array<{ question: string; confidence: string; askedAt: string }>;
+  recent: RecentQuestion[];
   totals: { asked: number; answered: number; unsure: number; unknown: number };
+}
+
+/**
+ * One answered question, with the answer and the two buttons.
+ *
+ * Marking something wrong is only half useful; the other half is doing
+ * something about it, so a WRONG verdict reveals a link straight to the item
+ * that produced it. Without that, the owner is left with a complaint and no
+ * remedy — and the next visitor gets the same answer.
+ */
+function AnsweredQuestion({
+  item,
+  onRate,
+}: {
+  item: RecentQuestion;
+  onRate: (verdict: Verdict) => void;
+}) {
+  const wrong = item.verdict === 'WRONG';
+  return (
+    <li
+      className={`animate-rise rounded-card border p-3 ${
+        wrong ? 'border-red-200 bg-red-50' : 'border-ink-200 bg-surface'
+      }`}
+    >
+      {/* Visitor-authored text. React escapes it. */}
+      <p className="text-sm font-medium text-ink-900">{item.question}</p>
+
+      {item.answeredWith ? (
+        <p className="mt-1.5 line-clamp-3 text-sm text-ink-600">
+          <span className="text-ink-600">Answered with: </span>
+          {item.answeredWith.content}
+        </p>
+      ) : (
+        <p className="mt-1.5 text-sm text-ink-500">
+          The answer came from something that has since been deleted.
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={item.verdict === 'GOOD'}
+          onClick={() => onRate('GOOD')}
+          className={`interactive rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+            item.verdict === 'GOOD'
+              ? 'bg-success-fill text-white ring-success-fill'
+              : 'bg-surface text-ink-700 ring-ink-300 hover:bg-ink-50'
+          }`}
+        >
+          Good answer
+        </button>
+        <button
+          type="button"
+          aria-pressed={wrong}
+          onClick={() => onRate('WRONG')}
+          className={`interactive rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+            wrong
+              ? 'bg-danger-fill text-white ring-danger-fill'
+              : 'bg-surface text-ink-700 ring-ink-300 hover:bg-ink-50'
+          }`}
+        >
+          That is wrong
+        </button>
+        {wrong && item.answeredWith && (
+          <Link
+            to={`/dashboard/knowledge?edit=${item.answeredWith.id}`}
+            className="ml-auto text-xs font-semibold text-red-700 underline"
+          >
+            Fix this answer
+          </Link>
+        )}
+        {wrong && !item.answeredWith && (
+          <Link
+            to={`/dashboard/knowledge?answer=${encodeURIComponent(item.question)}`}
+            className="ml-auto text-xs font-semibold text-red-700 underline"
+          >
+            Write the right answer
+          </Link>
+        )}
+      </div>
+    </li>
+  );
 }
 
 /** Where the widget script is served from — the dashboard's own origin. */
@@ -66,6 +160,52 @@ export function WidgetPage() {
   const liveDomains = verified.filter((d) => !d.isSandbox);
 
   const snippet = `<script src="${widgetSrc}" data-business-id="${businessId}" defer></script>`;
+
+  /**
+   * Only the ones that actually produced an answer.
+   *
+   * An "I don't know" is already handled by the gap list above, and asking
+   * the owner to rate a refusal would be asking the wrong question: the
+   * refusal was correct, the missing knowledge is the problem.
+   */
+  const answeredRecently = (insights?.recent ?? []).filter(
+    (item) => item.confidence !== 'unknown',
+  );
+
+  const rate = async (item: RecentQuestion, verdict: Verdict) => {
+    // Updated locally first: this is a one-tap judgement on a list, and a
+    // round trip before the button changes makes it feel broken enough that
+    // people tap twice.
+    const next = item.verdict === verdict ? null : verdict;
+    setInsights((current) =>
+      current
+        ? {
+            ...current,
+            recent: current.recent.map((r) => (r.id === item.id ? { ...r, verdict: next } : r)),
+          }
+        : current,
+    );
+    try {
+      await apiFetch(`/api/v1/businesses/${businessId}/receptionist/questions/${item.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ verdict: next }),
+      });
+    } catch (err) {
+      // Put it back. A rating that silently did not save is worse than one
+      // that visibly failed, because the owner believes it was recorded.
+      setInsights((current) =>
+        current
+          ? {
+              ...current,
+              recent: current.recent.map((r) =>
+                r.id === item.id ? { ...r, verdict: item.verdict } : r,
+              ),
+            }
+          : current,
+      );
+      setError(getErrorCopy(err));
+    }
+  };
 
   const handleAsk = async (event: FormEvent) => {
     event.preventDefault();
@@ -259,7 +399,7 @@ export function WidgetPage() {
                             quietly stops being used. */}
                         <Link
                           to={`/dashboard/knowledge?answer=${encodeURIComponent(gap.question)}`}
-                          className="interactive rounded-md bg-amber-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-800"
+                          className="interactive rounded-md bg-warn-fill px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90"
                         >
                           Answer this
                         </Link>
@@ -279,6 +419,36 @@ export function WidgetPage() {
                 Nothing has gone unanswered yet.
               </p>
             )}
+          </CardBody>
+        </Card>
+      )}
+
+      {answeredRecently.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-title text-sm font-semibold text-ink-900">What it answered</h2>
+          </CardHeader>
+          <CardBody>
+            {/*
+              The product's entire claim is that it does not invent. Nothing
+              automatic can check that: the answer was the owner's own
+              published words returned faithfully, and whether those were the
+              RIGHT words for that question is a judgement only they can make.
+              So the answer is shown next to the question and they are asked.
+            */}
+            <p className="text-sm text-ink-600">
+              Each of these is a real visitor question and the answer it was given. If one is
+              wrong, say so — it is the only way anyone finds out.
+            </p>
+            <ul className="stagger mt-4 space-y-3">
+              {answeredRecently.map((item) => (
+                <AnsweredQuestion
+                  key={item.id}
+                  item={item}
+                  onRate={(verdict) => void rate(item, verdict)}
+                />
+              ))}
+            </ul>
           </CardBody>
         </Card>
       )}

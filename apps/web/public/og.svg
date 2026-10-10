@@ -1,0 +1,55 @@
+<!--
+  The link-preview card, 1200x630 (the size every platform crops to).
+
+  Says the one thing worth saying in a preview: that this receptionist admits
+  when it does not know. A logo on a gradient would be prettier and would tell
+  a business owner scrolling WhatsApp nothing at all.
+
+  This file is the SOURCE. `og.png` beside it is what is actually served, and
+  it is committed rather than built: Open Graph consumers do not render SVG
+  (WhatsApp, LinkedIn and Slack all ignore it), and rasterising at build time
+  would mean a native image dependency in the deploy for one static picture
+  that changes twice a year.
+
+  To change the card: edit this, re-render it to og.png at 1200x630, and
+  commit both. Any SVG-to-PNG tool does; it was last done by drawing it onto
+  a canvas in a browser. Keep it flat-coloured — see the note on the
+  background below.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Flat, not a gradient. A full-bleed gradient rasterises to ~457kB of PNG
+       because almost every pixel is a distinct colour; flat is ~30kB, and a
+       link preview that loads instantly beats one that is slightly prettier. -->
+  <rect width="1200" height="630" fill="#0b1220" />
+  <rect x="0" y="0" width="1200" height="6" fill="url(#mark)" />
+
+  <!-- Wordmark -->
+  <rect x="80" y="74" width="60" height="60" rx="14" fill="url(#mark)" />
+  <text x="110" y="115" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="25" font-weight="700" fill="#ffffff">RQ</text>
+  <text x="158" y="115" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="30" font-weight="600" fill="#e8edf7">ReplyIQ</text>
+
+  <!-- The claim -->
+  <text x="80" y="248" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="66" font-weight="700" fill="#ffffff">An AI receptionist that</text>
+  <text x="80" y="326" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="66" font-weight="700" fill="#ffffff">never invents an answer.</text>
+
+  <text x="80" y="396" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="30" fill="#9fb0cc">It answers from what you already published —</text>
+  <text x="80" y="440" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="30" fill="#9fb0cc">and takes their number when it cannot.</text>
+
+  <!-- The proof, as the product itself would say it -->
+  <rect x="80" y="492" width="648" height="68" rx="16" fill="#18233a" stroke="#2a3a5c" />
+  <text x="108" y="534" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="27" fill="#cdd9ee">“I don’t know — but I’ll get someone to call you.”</text>
+</svg>

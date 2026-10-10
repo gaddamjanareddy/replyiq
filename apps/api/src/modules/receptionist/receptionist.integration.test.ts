@@ -219,3 +219,87 @@ describe('recording what was asked', () => {
     expect(insights.totals.unknown).toBeGreaterThan(0);
   });
 });
+
+/**
+ * The owner's verdict on an answer.
+ *
+ * This is the only way the product ever learns it got something wrong:
+ * nothing automatic can tell, because the answer was the owner's own
+ * published words returned faithfully, and whether they were the right words
+ * for that question is a judgement only a person can make.
+ */
+describe('rating an answer', () => {
+  const askAndFind = async (question: string) => {
+    const sessionKey = `r${randomUUID().replace(/-/g, '')}`.slice(0, 40);
+    await service.ask(businessId, ORIGIN, question, sessionKey);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const row = await prisma.receptionistQuestion.findFirstOrThrow({ where: { sessionKey } });
+    return row;
+  };
+
+  it('shows the owner WHAT answered, so they are judging an answer not guessing', async () => {
+    await askAndFind('what are your opening hours');
+
+    const insights = await service.insights(businessId);
+    const entry = insights.recent.find((r) => r.question === 'what are your opening hours');
+    expect(entry?.answeredWith?.content).toBe('We open Monday to Friday, 9am to 5:30pm.');
+    // Nobody has looked at it yet, which is not the same as it being fine.
+    expect(entry?.verdict).toBeNull();
+  });
+
+  it('records a verdict and reports it in the summary', async () => {
+    const row = await askAndFind('what are your opening hours');
+    await service.rateAnswer(businessId, row.id, 'WRONG');
+
+    const summary = await service.summary(businessId);
+    expect(summary.markedWrong).toBeGreaterThan(0);
+    // Both numbers, never just a percentage: "3% wrong" out of four reviewed
+    // answers is noise dressed as a measurement.
+    expect(summary.reviewed).toBeGreaterThanOrEqual(summary.markedWrong);
+  });
+
+  it('lets the owner undo a verdict', async () => {
+    const row = await askAndFind('what are your opening hours');
+    await service.rateAnswer(businessId, row.id, 'WRONG');
+    await service.rateAnswer(businessId, row.id, null);
+
+    const after = await prisma.receptionistQuestion.findUniqueOrThrow({ where: { id: row.id } });
+    expect(after.verdict).toBeNull();
+  });
+
+  /**
+   * An unreviewed answer must never count as a good one. If it did, the
+   * accuracy figure in STRATEGY.md §5 would improve every time somebody
+   * ignored it, which is the opposite of a measurement.
+   */
+  it('does not count unreviewed answers as reviewed', async () => {
+    const before = await service.summary(businessId);
+    await askAndFind('what are your opening hours');
+    const after = await service.summary(businessId);
+
+    expect(after.asked).toBeGreaterThan(before.asked);
+    expect(after.reviewed).toBe(before.reviewed);
+  });
+
+  it('refuses to rate a question belonging to another business', async () => {
+    const row = await askAndFind('what are your opening hours');
+    const otherOrg = await prisma.organization.create({
+      data: { name: `RATE-OTHER-${randomUUID().slice(0, 8)}` },
+    });
+    const other = await prisma.business.create({
+      data: { organizationId: otherOrg.id, name: 'Someone Else' },
+    });
+
+    await expect(service.rateAnswer(other.id, row.id, 'WRONG')).rejects.toMatchObject({
+      response: { code: 'RESOURCE_NOT_FOUND' },
+    });
+
+    const untouched = await prisma.receptionistQuestion.findUniqueOrThrow({
+      where: { id: row.id },
+    });
+    expect(untouched.verdict).toBeNull();
+
+    await prisma.business.deleteMany({ where: { id: other.id } });
+    await prisma.organization.deleteMany({ where: { id: otherOrg.id } });
+  });
+});

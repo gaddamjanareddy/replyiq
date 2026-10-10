@@ -30,25 +30,29 @@ The whole loop runs end to end, verified in a browser rather than only in tests.
 6. **The owner sees the gaps** — every visitor question is recorded with its
    confidence; unanswered ones are surfaced with repeats counted, and one click
    opens the add-answer dialog with the question already filled in.
-7. **A public front page** with the real widget answering on it, and link
-   metadata so the URL previews when it is shared.
+7. **The owner judges the answers** — every answered question is shown with
+   the knowledge item that produced it, and can be marked good or wrong.
+   Marking one wrong links straight to that item to fix it. This is the only
+   way the product ever learns it got something wrong, and the only input to
+   the accuracy target in `STRATEGY.md` §5.
+8. **A public front page** with the real widget answering on it, and link
+   metadata and an image so the URL previews when it is shared.
 
 **Password reset** exists (token, single-use, 30-minute expiry, revokes every
 session). **Dark theme**, field-level validation errors, and a bento dashboard
 are in. Contrast was measured, not eyeballed: every text/background pair clears
 WCAG AA in both themes.
 
-605 tests: 339 API unit, 198 web, 68 integration against a real database.
+612 tests: 339 API unit, 198 web, 75 integration against a real database.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
 
 ## What does not exist yet
 
 - **Billing.** Nothing. Decided but unbuilt — see below.
-- **An `og:image`.** Link previews are text-only.
 - **Conversation transcripts.** Questions are logged individually.
-- **Owner feedback on answers.** `STRATEGY.md` §5 wants "answers the owner
-  marks wrong < 3%" and there is no way to mark one.
+- **A trend over time.** The numbers are 30-day totals with nothing to compare
+  them against, so "is this getting better?" is unanswerable.
 - **An LLM.** The answer engine is retrieval-only behind an `AnswerEngine`
   interface. This is a deliberate choice, not a gap: it costs nothing per
   conversation and cannot hallucinate. A model would improve phrasing, not
@@ -126,12 +130,10 @@ tail shows `P1001: Can't reach database server`, that is this.
 1. **Razorpay billing against test mode.** Decided and unstarted. Needs an
    account the owner holds; no live keys and no real money until there is a
    customer.
-2. **Owner feedback on answers** — "this was wrong" from the dashboard, which
-   is the only missing input to the §5 accuracy number.
-3. **An `og:image`** so a shared link has a picture.
-4. **The production demo** — a business with `replyiq-web.onrender.com`
+2. **The production demo** — a business with `replyiq-web.onrender.com`
    verified and `VITE_DEMO_BUSINESS_ID` set in Render, or the front page's
    demo widget simply does not render.
+3. **Week-on-week trends**, so the owner can see whether it is improving.
 
 Known debt is tracked in `UX-FINDINGS-2026-09-06.md` — all five original
 findings are closed.

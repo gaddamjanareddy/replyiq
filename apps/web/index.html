@@ -36,7 +36,17 @@
       content="It answers from what you already published, admits when it does not know, and captures the enquiry instead of losing the customer."
     />
     <meta property="og:url" content="https://replyiq-web.onrender.com/" />
-    <meta name="twitter:card" content="summary" />
+
+    <!-- Absolute, because a crawler resolves this against nothing. 1200x630
+         is the shape every platform crops to; the source is public/og.svg. -->
+    <meta property="og:image" content="https://replyiq-web.onrender.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="ReplyIQ — an AI receptionist that never invents an answer."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Approximates `--color-ink-50` in each theme, so the mobile browser
          chrome does not sit as a white bar above a dark page. sRGB hex rather

@@ -51,11 +51,37 @@ export function KnowledgePage() {
    */
   const [searchParams, setSearchParams] = useSearchParams();
   const prefilledQuestion = searchParams.get('answer');
+
+  const editId = searchParams.get('edit');
+
+  const clearParam = (name: string) => {
+    searchParams.delete(name);
+    setSearchParams(searchParams, { replace: true });
+  };
   const [editing, setEditing] = useState<KnowledgeItem | null>(null);
 
   const summary = data?.summary;
   const sources = data?.sources ?? [];
   const serviceMode = businessData?.business.serviceMode ?? 'INACTIVE';
+
+  /**
+   * `?edit=<itemId>` opens that answer for editing.
+   *
+   * The other half of "that answer was wrong". Marking one wrong and then
+   * being dropped on a page of every answer you have ever written, to find
+   * the offending one by eye, is a complaint with no remedy — and the next
+   * visitor gets the same answer.
+   *
+   * Resolved out of the already-loaded sources rather than fetched: the page
+   * has the items, and a second request for one of them would only add a way
+   * for this to be briefly wrong. It therefore resolves to null on the first
+   * render and to the item once the list arrives, which is what opens the
+   * dialog — EditAnswerDialog is driven by `item`, not by an open flag.
+   */
+  const itemToEdit =
+    editId === null
+      ? null
+      : (sources.flatMap((source) => source.items).find((item) => item.id === editId) ?? null);
 
   const handleIngest = async () => {
     setError(null);
@@ -140,18 +166,18 @@ export function KnowledgePage() {
         initialQuestion={prefilledQuestion ?? ''}
         onClose={() => {
           setShowAdd(false);
-          if (prefilledQuestion !== null) {
-            // Dropped from the URL on close, or the dialog reopens on every
-            // re-render and the owner cannot get back to the page.
-            searchParams.delete('answer');
-            setSearchParams(searchParams, { replace: true });
-          }
+          // Dropped from the URL on close, or the dialog reopens on every
+          // re-render and the owner cannot get back to the page.
+          if (prefilledQuestion !== null) clearParam('answer');
         }}
       />
       <EditAnswerDialog
         businessId={businessId}
-        item={editing}
-        onClose={() => setEditing(null)}
+        item={editing ?? itemToEdit}
+        onClose={() => {
+          setEditing(null);
+          if (editId !== null) clearParam('edit');
+        }}
       />
     </div>
   );
