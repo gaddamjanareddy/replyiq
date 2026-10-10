@@ -93,6 +93,7 @@ that way.
 
 | Question | File |
 |---|---|
+| What we are trying to achieve, and in what order | `docs/STRATEGY.md` |
 | What is built, what is next | `docs/PROJECT_STATUS.md` |
 | Why a thing is the way it is | The commit message. They are detailed on purpose. |
 | Product goals and requirements | `docs/product-spec/01-PRODUCT-REQUIREMENTS.md` |

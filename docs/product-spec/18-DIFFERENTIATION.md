@@ -4,9 +4,11 @@
 > others don't, and why it is defensible.
 
 > **Status:** Approved
-> **Last Updated:** 2026-09-05
+> **Last Updated:** 2026-10-10
 > **Owner:** Product
-> **Read with:** `01-PRODUCT-REQUIREMENTS.md` (goals) and `15-ROADMAP.md` (order)
+> **Read with:** `../STRATEGY.md`, which supersedes this document on *goals and
+> ordering*. This one is kept because it argues the competitive case in more
+> detail than a strategy document should.
 
 ---
 
@@ -41,7 +43,7 @@ This is the strategic core of the product. Everything in §3 follows from it.
 
 ---
 
-## 3. The three differentiators
+## 3. The differentiators
 
 ### D1 — Your receptionist is ready before you've done anything
 
@@ -62,7 +64,8 @@ engagement making production-grade. A competitor bolting on a crawler has no
 basis to claim the site is the user's, which is a legal and abuse problem, not a
 technical one.
 
-*Status:* Milestone 5. This is the next thing to build.
+*Status:* **Built.** A verified site is crawled into an editable knowledge base
+on verification.
 
 ### D2 — It says "I don't know" and means it
 
@@ -79,7 +82,8 @@ which answer.
 makes demos look worse. It makes *deployments* work better, and it is the single
 biggest reason SMBs turn these things off after a fortnight.
 
-*Status:* Milestone 6, but the grounding data model belongs in Milestone 5.
+*Status:* **Built.** Three-rung retrieval; anything below the top rung is
+hedged however high it scored. See `CLAUDE.md` rule 1.
 
 ### D3 — The gap report
 
@@ -95,7 +99,29 @@ knowledge.
 asset, and it is a retention mechanism. The owner has a reason to log in weekly
 that isn't guilt.
 
-*Status:* Milestone 6.
+*Status:* **Partly built.** Every question is recorded with its confidence and
+unanswered ones are counted and grouped. Turning one into knowledge in a single
+click is not built yet.
+
+### D4 — The honest non-answer is the lead
+
+**The insight:** D2 is only half a product. A receptionist that honestly says
+"I don't know" and then lets the visitor leave has been honest *and* lost the
+customer — which, from the owner's side of the counter, looks the same as
+failing.
+
+So the non-answer hands over instead of stopping: *"I don't want to guess about
+that — leave your number and we'll come back to you."* The owner gets a lead
+with the question attached, so they know what to say before they call.
+
+*Why it's defensible:* it inverts the cost of the honesty rule. A wrapper
+product guesses, the visitor leaves satisfied and misinformed, and the owner
+gets nothing to follow up. We decline to guess and the owner gets a phone
+number and the exact question. Competitors cannot copy the mechanism without
+first adopting the refusal — which is the thing they avoid because it makes
+their demo look worse.
+
+*Status:* The current build. See `../STRATEGY.md` §3.3.
 
 ---
 
@@ -113,7 +139,7 @@ that isn't guilt.
 ## 5. Why this ordering
 
 The temptation is to build the AI first, because it's the exciting part. That
-would be wrong. **D1 is the wedge, and D1 is a Milestone 5 feature.**
+would be wrong. **D1 is the wedge**, and it was built before the answering.
 
 A receptionist with no knowledge is a demo. A knowledge base with no receptionist
 is still useful (the owner can see what we understood about their business, and
@@ -121,13 +147,14 @@ correct it). So knowledge first is the order that produces something valuable at
 every intermediate step — and it means the LLM, when it arrives, has something
 real to be grounded in.
 
-| Order | What | Why now |
-|---|---|---|
-| **1** | Knowledge engine + site ingestion (M5) | The wedge (D1). Valuable on its own. Prerequisite for everything else. |
-| **2** | Grounded answering + confidence (M6) | Turns knowledge into the product. Delivers D2. |
-| **3** | Widget (M7) | Delivery mechanism. Meaningless before 1 and 2. |
-| **4** | Gap report (M6b) | Needs conversation volume to be worth anything. Delivers D3. |
-| **5** | Password reset, cookie sessions, email | Launch blockers — needed before real customers, not before real *usage*. |
+| Order | What | Why then | Done |
+|---|---|---|---|
+| **1** | Knowledge engine + site ingestion | The wedge (D1). Valuable on its own. Prerequisite for everything else. | ✅ |
+| **2** | Grounded answering + confidence | Turns knowledge into the product. Delivers D2. | ✅ |
+| **3** | Widget | Delivery mechanism. Meaningless before 1 and 2. | ✅ |
+| **4** | Password reset, email, a front page | Needed before real customers, not before real *usage*. | ✅ |
+| **5** | Lead capture on the non-answer | Delivers D4. The commercial engine; everything above it is unmonetisable without it. | ← |
+| **6** | Gap report made actionable | Needs conversation volume to be worth anything. Completes D3. | |
 
 ---
 
@@ -138,7 +165,8 @@ real to be grounded in.
 | D1 | Businesses with a non-empty knowledge base 10 minutes after signup | > 80% (industry norm for "upload your docs" onboarding is well under half) |
 | D1 | Median time from signup to first answerable question | < 10 minutes |
 | D2 | Answers marked wrong by the owner | < 3% of answered questions |
-| D2 | Escalations that were correct to escalate (sampled) | > 90% |
+| D4 | Non-answers that end in a captured contact | > 15% |
+| D4 | Captured leads the owner marks as genuine | > 70% |
 | D3 | Owners who add knowledge from a gap-report prompt, weekly | > 40% of active businesses |
 | D3 | Knowledge-base growth after week 1 | Still positive at week 8 |
 
@@ -146,10 +174,12 @@ real to be grounded in.
 
 ## 7. The thing to be honest about
 
-None of this exists yet. Today ReplyIQ is a very good signup and domain
-verification flow attached to nothing. The differentiation above is a plan, not a
-position, and it stays a plan until Milestone 5 ships.
+D1, D2 and the widget are built and have been driven end to end. **Nobody
+outside the team has used any of it**, so every number in §6 is a target rather
+than a measurement, and the differentiation is a defensible *position* only in
+the sense that the mechanism exists — not in the sense that a customer has paid
+for it.
 
-The plan is worth writing down now precisely because it changes *what* Milestone
-5 is: not "a document uploader", but "your verified site becomes your knowledge
-base automatically". Those are different builds, and only one of them is a wedge.
+D4 is the one that decides whether the rest was worth building. If honest
+non-answers do not convert into leads, the product is a well-mannered commodity
+and §6's first two rows are consolation prizes.

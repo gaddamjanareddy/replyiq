@@ -1,8 +1,9 @@
 # ReplyIQ - Product Requirements (Goal Document)
 
-> Defines what ReplyIQ is, who it serves, what it must do, and the quality bar every
-> release is measured against. This is the **goal document**: when any other
-> specification disagrees with this one about *intent*, this one wins.
+> Defines what ReplyIQ must do and the quality bar every release is measured
+> against. When any other *specification* disagrees with this one about intent,
+> this one wins — but `../STRATEGY.md` outranks it on goals, audience and
+> ordering, and was written after most of the implementation existed.
 
 > **Status:** Approved
 > **Last Updated:** 2026-09-05
@@ -14,9 +15,21 @@
 
 ## 1. Product Vision
 
-ReplyIQ is an AI-powered business receptionist platform that enables companies to deploy conversational AI agents across their digital channels. The platform handles lead qualification, appointment scheduling, and customer support autonomously.
+> **Superseded by `../STRATEGY.md` §1.** Kept for the record because the
+> requirements below were written against it, and because the gap between the
+> two is instructive: the paragraph after this one describes a platform, and the
+> thing worth building turned out to be much narrower.
 
-ReplyIQ gives every business -- regardless of size -- a 24/7 digital employee that greets visitors, qualifies leads, answers questions from a company knowledge base, and books appointments, operating across web widgets, email, and messaging channels.
+ReplyIQ turns website visitors a small business would otherwise have lost into
+either an informed customer or a contactable lead — and lets the owner see that
+it happened. One business, one website, one owner who answers their own phone.
+
+The original 2026-08 framing, for comparison: *"an AI-powered business
+receptionist platform that enables companies to deploy conversational AI agents
+across their digital channels … handles lead qualification, appointment
+scheduling, and customer support autonomously … across web widgets, email, and
+messaging channels."* Multi-channel, booking and autonomous qualification are
+all deliberately out of scope now; see `../STRATEGY.md` §4.
 
 ---
 
