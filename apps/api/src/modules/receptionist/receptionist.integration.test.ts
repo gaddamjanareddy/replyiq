@@ -220,6 +220,39 @@ describe('recording what was asked', () => {
   });
 });
 
+describe('what the widget is told before anyone asks', () => {
+  it('offers the business own questions as a way in', async () => {
+    const config = await service.config(businessId, ORIGIN);
+
+    expect(config.businessName).toBe('Harbour Dental');
+    // Both seeded items are real questions, so both are offered — and they
+    // are the owner's own words, never generated.
+    expect(config.suggestions).toContain('What are your opening hours?');
+    expect(config.suggestions).toContain('Do you take NHS patients?');
+    expect(config.suggestions.length).toBeLessThanOrEqual(3);
+  });
+
+  /**
+   * A suggestion the receptionist cannot answer would be an invention we put
+   * in the visitor's mouth — the worst kind, because they did not even choose
+   * the words. Every suggestion must be answerable, so this asserts the round
+   * trip rather than just the list.
+   */
+  it('suggests only questions it can actually answer', async () => {
+    const config = await service.config(businessId, ORIGIN);
+    for (const suggestion of config.suggestions) {
+      const answer = await service.preview(businessId, suggestion);
+      expect(answer.confidence).not.toBe('unknown');
+    }
+  });
+
+  it('refuses to describe a business to an origin it has not verified', async () => {
+    await expect(
+      service.config(businessId, 'https://notharbour-widget.example.com'),
+    ).rejects.toMatchObject({ response: { code: 'WIDGET_ORIGIN_NOT_ALLOWED' } });
+  });
+});
+
 /**
  * The owner's verdict on an answer.
  *

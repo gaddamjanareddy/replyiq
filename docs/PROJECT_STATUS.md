@@ -20,7 +20,7 @@ The whole loop runs end to end, verified in a browser rather than only in tests.
    IANA-reserved namespace. Website verification works over real HTTPS.
 3. **Knowledge** — the verified site is crawled into an editable knowledge base,
    or the owner writes answers by hand. Postgres full-text search over both.
-4. **The receptionist answers** — a 3.7kB embeddable widget, Shadow-DOM
+4. **The receptionist answers** — a 4.9kB embeddable widget, Shadow-DOM
    isolated, grounded in the owner's own words, hedging when unsure and
    admitting ignorance when it does not know.
 5. **It captures the ones it cannot answer** — an honest "I don't know" offers
@@ -43,7 +43,7 @@ session). **Dark theme**, field-level validation errors, and a bento dashboard
 are in. Contrast was measured, not eyeballed: every text/background pair clears
 WCAG AA in both themes.
 
-612 tests: 339 API unit, 198 web, 75 integration against a real database.
+620 tests: 347 API unit, 198 web, 78 integration against a real database.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
 

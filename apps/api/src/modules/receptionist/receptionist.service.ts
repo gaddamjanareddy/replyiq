@@ -11,6 +11,7 @@ import {
   type RetrievedPassage,
 } from './answer-engine.js';
 import { checkWidgetOrigin, type AllowedDomain } from './widget-origin.js';
+import { MAX_SUGGESTIONS, pickStarterQuestions } from './starter-questions.js';
 
 /**
  * The public receptionist: the only part of the product a visitor ever meets.
@@ -174,12 +175,35 @@ export class ReceptionistService {
     businessId: string,
     origin: string | undefined,
     referer?: string,
-  ): Promise<{ businessName: string; mode: 'LIVE' | 'TEST'; greeting: string }> {
+  ): Promise<{
+    businessName: string;
+    mode: 'LIVE' | 'TEST';
+    greeting: string;
+    suggestions: string[];
+  }> {
     const { mode, businessName } = await this.authorizeWidget(businessId, origin, referer);
+
+    /**
+     * Over-fetched, then filtered down to three.
+     *
+     * Most knowledge items are prose chunks with no heading, and most
+     * headings on a crawled site are filing labels rather than questions —
+     * so asking the database for three would usually return three unusable
+     * ones. Twenty is a cheap indexed read and leaves the choosing to code
+     * that can be tested. See `starter-questions.ts`.
+     */
+    const candidates = await this.prisma.knowledgeItem.findMany({
+      where: { businessId, deletedAt: null, question: { not: null } },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      take: MAX_SUGGESTIONS * 7,
+      select: { question: true },
+    });
+
     return {
       businessName,
       mode,
       greeting: `Hi — I can answer questions about ${businessName}. What would you like to know?`,
+      suggestions: pickStarterQuestions(candidates),
     };
   }
 

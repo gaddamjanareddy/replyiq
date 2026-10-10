@@ -26,6 +26,9 @@ interface WidgetConfig {
   businessName: string;
   mode: 'LIVE' | 'TEST';
   greeting: string;
+  /** Real headings from the owner's knowledge base — never generated. An
+   *  older deployment may not send them, hence optional. */
+  suggestions?: string[];
 }
 
 interface AskResponse {
@@ -127,6 +130,15 @@ const STYLES = `
 .capture .field:focus-visible { outline: 2px solid #2563eb; outline-offset: -1px; border-color: #2563eb; }
 .capture .row { display: flex; align-items: center; gap: 8px; }
 .capture .err { margin: 0 0 8px; font-size: 12px; color: #b42318; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-self: flex-start; max-width: 100%; }
+.chip {
+  border: 1px solid #d0d5dd; border-radius: 999px; background: #fff; color: #1d4ed8;
+  font: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer; text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.chip:hover { background: #f5faff; border-color: #84caff; }
+.chip:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
 .ghost { border: 0; background: none; padding: 8px 4px; font: inherit; font-size: 13px; color: #667085; cursor: pointer; text-decoration: underline; }
 .ghost:hover { color: #101828; }
 .ghost:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 4px; }
@@ -154,6 +166,8 @@ const STYLES = `
   .msg.unsure { background: #2a2418; border-color: #5c4813; }
   .msg.problem { background: #2c1d1d; border-color: #6b2b26; }
   .input { background: #14171d; border-color: #333844; }
+  .chip { background: #1c1f26; border-color: #333844; color: #93c5fd; }
+  .chip:hover { background: #262a33; border-color: #3f5573; }
   .notice { background: #241f36; color: #c3b5fd; border-color: #3d3357; }
   .capture { background: #16202c; border-color: #1e4a73; }
   .capture .field { background: #14171d; border-color: #333844; color: #f5f6f7; }
@@ -397,6 +411,42 @@ function mount(businessId: string, apiBase: string): void {
   };
 
   /**
+   * Three things worth asking, shown under the greeting.
+   *
+   * The panel used to open with an empty box, which asks somebody who arrived
+   * for another reason entirely to stop and decide what they want. It also
+   * made their first question a coin toss: ask something the business never
+   * published and your one impression of the product is "I don't know".
+   *
+   * These come from the owner's own knowledge base, so the first answer is
+   * guaranteed to be a good one. They are removed as soon as one is used —
+   * they are a way in, not a menu to keep coming back to.
+   */
+  const offerSuggestions = () => {
+    const log = panel?.querySelector('.log');
+    const suggestions = config?.suggestions ?? [];
+    if (!log || suggestions.length === 0) return;
+
+    const chips = el('div', { class: 'chips' });
+    // A list, so a screen reader announces how many there are rather than
+    // reading three unrelated buttons floating after the greeting.
+    chips.setAttribute('role', 'group');
+    chips.setAttribute('aria-label', 'Questions you could ask');
+
+    for (const suggestion of suggestions) {
+      const chip = el('button', { class: 'chip', type: 'button', textContent: suggestion });
+      chip.addEventListener('click', () => {
+        chips.remove();
+        void ask(suggestion);
+      });
+      chips.append(chip);
+    }
+
+    log.append(chips);
+    log.scrollTop = log.scrollHeight;
+  };
+
+  /**
    * Ask for a way to be reached, inline in the conversation.
    *
    * Two fields, one of them optional, and a visible way out. Everything about
@@ -568,6 +618,11 @@ function mount(businessId: string, apiBase: string): void {
     input.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter') submit();
     });
+    // Somebody who starts typing has decided what to ask. Leaving the chips
+    // up competes with what they are already doing.
+    input.addEventListener('input', () => {
+      if (input.value.length > 0) p.querySelector('.chips')?.remove();
+    });
 
     p.append(el('div', { class: 'composer' }, input, send));
     return p;
@@ -609,6 +664,7 @@ function mount(businessId: string, apiBase: string): void {
     panel = buildPanel();
     root.append(panel);
     say(config?.greeting ?? 'Hi — what would you like to know?', 'them');
+    offerSuggestions();
     panel.querySelector<HTMLInputElement>('.input')?.focus();
   };
 
