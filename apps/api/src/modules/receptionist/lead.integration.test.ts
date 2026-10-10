@@ -20,12 +20,40 @@ import { LeadService } from './lead.service.js';
 const LIVE_ORIGIN = 'https://harbour-leads.example.com';
 const SANDBOX_ORIGIN = 'https://sandbox-leads.test';
 
-/** Captures what would have been sent, so delivery can be asserted on. */
+/**
+ * Captures what would have been sent, so delivery can be asserted on.
+ *
+ * `waitForSend` exists because the notification is fire-and-forget AND does
+ * its own database round trip to find the recipients. A single `setImmediate`
+ * after capture is not enough — it was tried, and both email assertions failed
+ * against an empty array while the product was working perfectly. A fixed
+ * sleep would have papered over that and been flaky on a slow machine, so this
+ * waits for the actual event with a bounded timeout.
+ */
 class CapturingEmailService extends EmailService {
   readonly sent: EmailMessage[] = [];
+  private waiters: Array<() => void> = [];
+
   override send(message: EmailMessage): Promise<void> {
     this.sent.push(message);
+    const waiting = this.waiters;
+    this.waiters = [];
+    for (const resolve of waiting) resolve();
     return Promise.resolve();
+  }
+
+  async waitForSend(timeoutMs = 5_000): Promise<void> {
+    if (this.sent.length > 0) return;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('no email was sent within the timeout')),
+        timeoutMs,
+      );
+      this.waiters.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
   }
 }
 
@@ -286,9 +314,9 @@ describe('telling the owner', () => {
       question: 'do you do root canals on a Sunday',
     });
 
-    // Notification is fire-and-forget, so the write has happened but the mail
-    // may be a microtask behind it.
-    await new Promise((resolve) => setImmediate(resolve));
+    // Notification is fire-and-forget and queries the database for the
+    // recipients, so the lead exists well before the mail does.
+    await email.waitForSend();
 
     expect(email.sent).toHaveLength(1);
     const message = first(email.sent);
@@ -304,8 +332,8 @@ describe('telling the owner', () => {
     await leads.capture(sandboxBusinessId, SANDBOX_ORIGIN, undefined, {
       contact: '9876543210',
     });
-    await new Promise((resolve) => setImmediate(resolve));
-    expect(email.sent[0]?.subject).toContain('[Test]');
+    await email.waitForSend();
+    expect(first(email.sent).subject).toContain('[Test]');
   });
 
   /**

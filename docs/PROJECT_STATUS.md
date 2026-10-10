@@ -38,7 +38,9 @@ session). **Dark theme**, field-level validation errors, and a bento dashboard
 are in. Contrast was measured, not eyeballed: every text/background pair clears
 WCAG AA in both themes.
 
-~535 tests: ~295 API unit, ~188 web, ~52 integration against a real database.
+605 tests: 339 API unit, 198 web, 68 integration against a real database.
+The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
+integration suite has been run.
 
 ## What does not exist yet
 
@@ -98,19 +100,6 @@ Competitors sit at $50–150/mo with a real per-message cost we do not have.
 4. **The production demo** — a business with `replyiq-web.onrender.com`
    verified and `VITE_DEMO_BUSINESS_ID` set in Render, or the front page's
    demo widget simply does not render.
-
-### Not verified yet
-
-The lead-capture integration suite (`lead.integration.test.ts`) has **not been
-run**: it needs Postgres, and Docker was not available in the session that
-wrote it. Everything else in the gate passed — 29/29 turbo tasks, 339 API unit
-tests, 198 web tests. Run it before trusting that suite:
-
-```bash
-docker compose up -d postgres
-cd packages/database && npx prisma migrate deploy
-cd ../../apps/api && npx vitest run --config vitest.integration.config.ts
-```
 
 Known debt is tracked in `UX-FINDINGS-2026-09-06.md` — all five original
 findings are closed.
