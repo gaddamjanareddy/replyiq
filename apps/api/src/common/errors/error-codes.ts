@@ -27,6 +27,11 @@ export enum ErrorCode {
    *  endpoint into a directory of who uses the product and on which domains. */
   WIDGET_ORIGIN_NOT_ALLOWED = 'WIDGET_ORIGIN_NOT_ALLOWED',
 
+  /** A visitor left something in the "phone or email" box that nobody could
+   *  ring or write to. The one case where the widget shows a validation error
+   *  to a stranger, so the copy has to be gentle and specific. */
+  LEAD_CONTACT_UNUSABLE = 'LEAD_CONTACT_UNUSABLE',
+
   // Authorization / resources
   AUTHZ_FORBIDDEN = 'AUTHZ_FORBIDDEN',
   RESOURCE_NOT_FOUND = 'RESOURCE_NOT_FOUND',

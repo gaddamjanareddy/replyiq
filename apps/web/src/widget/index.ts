@@ -121,6 +121,16 @@ const STYLES = `
 
 .notice { margin: 0; padding: 8px 16px; font-size: 12px; background: #f4f3ff; color: #5925dc; border-bottom: 1px solid #e9d7fe; }
 
+.capture { align-self: stretch; padding: 12px; border: 1px solid #b2ddff; border-radius: 12px; background: #f5fbff; }
+.capture p { margin: 0 0 10px; font-size: 13px; }
+.capture .field { width: 100%; margin-bottom: 8px; padding: 9px 10px; font: inherit; font-size: 14px; border: 1px solid #d0d5dd; border-radius: 8px; background: #fff; color: #101828; }
+.capture .field:focus-visible { outline: 2px solid #2563eb; outline-offset: -1px; border-color: #2563eb; }
+.capture .row { display: flex; align-items: center; gap: 8px; }
+.capture .err { margin: 0 0 8px; font-size: 12px; color: #b42318; }
+.ghost { border: 0; background: none; padding: 8px 4px; font: inherit; font-size: 13px; color: #667085; cursor: pointer; text-decoration: underline; }
+.ghost:hover { color: #101828; }
+.ghost:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 4px; }
+
 .dots { display: inline-flex; gap: 3px; }
 .dots i { width: 6px; height: 6px; border-radius: 50%; background: #98a2b3; animation: blink 1.2s infinite; }
 .dots i:nth-child(2) { animation-delay: .2s; }
@@ -145,6 +155,11 @@ const STYLES = `
   .msg.problem { background: #2c1d1d; border-color: #6b2b26; }
   .input { background: #14171d; border-color: #333844; }
   .notice { background: #241f36; color: #c3b5fd; border-color: #3d3357; }
+  .capture { background: #16202c; border-color: #1e4a73; }
+  .capture .field { background: #14171d; border-color: #333844; color: #f5f6f7; }
+  .capture .err { color: #fda29b; }
+  .ghost { color: #98a2b3; }
+  .ghost:hover { color: #f5f6f7; }
 }
 `;
 
@@ -161,6 +176,30 @@ function el<K extends keyof HTMLElementTagNameMap>(
   }
   for (const child of children) node.append(child);
   return node;
+}
+
+/**
+ * What a stranger is told when leaving their details fails.
+ *
+ * Exported and tested because this is the one place in the widget that
+ * receives an error body from the API, and the rule it has to keep is the
+ * product's second load-bearing rule: backend prose never reaches a screen.
+ * The server's `message` field is not consulted — only its stable `code` —
+ * and an unrecognised code falls through to copy that is safe to show anyone.
+ *
+ * It also has to be copy for a CUSTOMER rather than for the business owner.
+ * This is the only error in the product a visitor to someone else's website
+ * can see, so it blames the box, not the person, and says what shape of thing
+ * would work.
+ */
+export function leadErrorMessage(status: number, code: string | undefined): string {
+  if (code === 'LEAD_CONTACT_UNUSABLE') {
+    return 'That does not look like a phone number or an email address.';
+  }
+  if (status === 429) {
+    return 'That has been sent a few times already. Please try again later.';
+  }
+  return 'That did not go through. Please try again in a moment.';
 }
 
 function boot(): void {
@@ -240,6 +279,14 @@ function mount(businessId: string, apiBase: string): void {
   let previousQuestion: string | null = null;
   let panel: HTMLDivElement | null = null;
   let busy = false;
+  /**
+   * Whether the visitor has already been asked for their details.
+   *
+   * Asked AT MOST ONCE per visit, and never again after they decline or send.
+   * The alternative — offering on every unanswered question — turns an honest
+   * handover into nagging, and somebody who said no once has answered.
+   */
+  let captureOffered = false;
 
   const launcher = el(
     'button',
@@ -319,6 +366,23 @@ function mount(businessId: string, apiBase: string): void {
       // `unsure` is styled differently on purpose: an answer the receptionist
       // is guessing at must not look identical to one it is certain of.
       say(answer.text, answer.confidence === 'unsure' ? 'unsure' : 'them', answer.citations);
+
+      /**
+       * The handover.
+       *
+       * This is the only moment it is offered: the receptionist has just said
+       * it does not know, so asking for a number is plainly in the visitor's
+       * interest rather than a lead-capture popup. Offering it after a good
+       * answer would be the thing every other widget does — interrupting
+       * somebody who has what they came for.
+       *
+       * `unsure` deliberately does not trigger it. The visitor was given
+       * something; let them read it and ask again.
+       */
+      if (answer.confidence === 'unknown' && !captureOffered) {
+        captureOffered = true;
+        offerCapture(question);
+      }
     } catch {
       typing.remove();
       say("I can't reach the network right now. Please try again in a moment.", 'problem');
@@ -330,6 +394,118 @@ function mount(businessId: string, apiBase: string): void {
       const send = panel?.querySelector<HTMLButtonElement>('.send');
       if (send) send.disabled = false;
     }
+  };
+
+  /**
+   * Ask for a way to be reached, inline in the conversation.
+   *
+   * Two fields, one of them optional, and a visible way out. Everything about
+   * the shape of this is about not losing somebody who was already told "I
+   * don't know": no modal, no required name, no "which is this, phone or
+   * email?", and the decline is a plain link rather than a hidden X.
+   */
+  const offerCapture = (unansweredQuestion: string) => {
+    const log = panel?.querySelector('.log');
+    if (!log) return;
+
+    const card = el('div', { class: 'capture' });
+    const who = config?.businessName ?? 'the team';
+    card.append(
+      el('p', {
+        textContent: `Leave your number or email and ${who} will come back to you.`,
+      }),
+    );
+
+    const error = el('p', { class: 'err', hidden: true });
+    error.setAttribute('role', 'alert');
+    card.append(error);
+
+    const name = el('input', {
+      class: 'field',
+      type: 'text',
+      placeholder: 'Your name (optional)',
+      maxLength: 120,
+    });
+    name.setAttribute('aria-label', 'Your name, optional');
+
+    const contact = el('input', {
+      class: 'field',
+      type: 'text',
+      placeholder: 'Phone or email',
+      maxLength: 200,
+    });
+    contact.setAttribute('aria-label', 'Your phone number or email address');
+    /**
+     * `tel`, although the field takes either.
+     *
+     * `autocomplete` accepts one token, so a field meaning "phone or email"
+     * cannot describe itself honestly. Phone wins because the market is India
+     * and because on a phone this is the difference between one tap and typing
+     * ten digits. It only ever OFFERS a value, so somebody typing an email
+     * loses nothing.
+     */
+    contact.setAttribute('autocomplete', 'tel');
+
+    const send = el('button', { class: 'send', type: 'button', textContent: 'Send' });
+    const no = el('button', { class: 'ghost', type: 'button', textContent: 'No thanks' });
+
+    const finish = (text: string) => {
+      card.remove();
+      say(text, 'them');
+    };
+
+    no.addEventListener('click', () => {
+      card.remove();
+      // Nothing is said in reply. Acknowledging a decline out loud would be
+      // one more line from a receptionist that already could not help.
+    });
+
+    const submit = async () => {
+      const value = contact.value.trim();
+      if (!value) {
+        error.hidden = false;
+        error.textContent = 'Please add a phone number or an email address.';
+        contact.focus();
+        return;
+      }
+      send.disabled = true;
+      error.hidden = true;
+      try {
+        const res = await fetch(`${apiBase}/api/v1/receptionist/${businessId}/lead`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact: value,
+            ...(name.value.trim() ? { name: name.value.trim() } : {}),
+            question: unansweredQuestion,
+          }),
+        });
+        if (res.ok) {
+          finish(`Thank you — ${who} will be in touch.`);
+          return;
+        }
+        // The server decides whether a contact detail is usable; the widget
+        // only maps its code to copy written for a stranger. Backend prose is
+        // never shown, here least of all.
+        const body = (await res.json().catch(() => ({}))) as { code?: string };
+        error.hidden = false;
+        error.textContent = leadErrorMessage(res.status, body.code);
+        send.disabled = false;
+      } catch {
+        error.hidden = false;
+        error.textContent = 'No connection right now. Please try again in a moment.';
+        send.disabled = false;
+      }
+    };
+
+    send.addEventListener('click', () => void submit());
+    contact.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Enter') void submit();
+    });
+
+    card.append(name, contact, el('div', { class: 'row' }, send, no));
+    log.append(card);
+    log.scrollTop = log.scrollHeight;
   };
 
   const buildPanel = (): HTMLDivElement => {
@@ -409,6 +585,11 @@ function mount(businessId: string, apiBase: string): void {
       // reopened chat would let a question from ten minutes ago silently steer
       // an unrelated one.
       previousQuestion = null;
+      // A new conversation may be offered the handover again. Closing the
+      // panel is how somebody starts over, and carrying the refusal across
+      // would mean a visitor who dismissed it once can never leave their
+      // number without reloading the page.
+      captureOffered = false;
       launcher.focus();
       return;
     }

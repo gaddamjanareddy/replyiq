@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { useBusiness, useDomains, useOnboardingProgress } from '../hooks/useBusiness';
+import { useReceptionistSummary } from '../hooks/useLeads';
 import { Badge, onboardingStatusBadge, serviceModeBadge } from '../components/ui/Badge';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -15,6 +16,15 @@ export function DashboardPage() {
   const { data: businessData, isLoading } = useBusiness(businessId);
   const { data: onboarding } = useOnboardingProgress(businessId);
   const { data: domainsData } = useDomains(businessId);
+  /**
+   * Error deliberately ignored.
+   *
+   * These are supporting numbers on the page a user lands on after signing
+   * in. A summary that fails must leave the dashboard standing - the tiles
+   * simply do not render - rather than replacing the whole first screen of
+   * the product with an error about a statistic.
+   */
+  const { data: summary } = useReceptionistSummary(businessId);
 
   const business = businessData?.business;
   const domains = domainsData?.domains ?? [];
@@ -120,8 +130,52 @@ export function DashboardPage() {
           </CardBody>
         </Card>
 
-        {/* SUPPORTING DETAIL — equal weight is correct here, because these
-            three genuinely are peers. */}
+        {/* OUTCOMES — what the receptionist produced, before anything about
+            how it is configured.
+
+            This ordering is the point of the page. It previously opened with
+            three tiles describing settings the owner typed in themselves:
+            their business name, their industry, their website. None of that is
+            news. What IS news is that four people asked something and one of
+            them left a number. */}
+        {summary && summary.leadsWaiting > 0 && (
+          <div className="animate-rise lg:col-span-4">
+            <StatCard
+              label="Waiting for a reply"
+              value={String(summary.leadsWaiting)}
+              sub={
+                summary.leadsWaiting === 1
+                  ? 'Somebody asked and left their details'
+                  : 'People who asked and left their details'
+              }
+              to="/dashboard/leads"
+              urgent
+            />
+          </div>
+        )}
+        {summary && summary.asked > 0 && (
+          <div className="animate-rise lg:col-span-4">
+            <StatCard
+              label="Questions answered"
+              value={`${summary.answered} of ${summary.asked}`}
+              sub="In the last 30 days"
+              to="/dashboard/widget"
+            />
+          </div>
+        )}
+        {summary && summary.unanswered > 0 && (
+          <div className="animate-rise lg:col-span-4">
+            <StatCard
+              label="Could not answer"
+              value={String(summary.unanswered)}
+              sub="Each one is a short answer away"
+              to="/dashboard/widget"
+            />
+          </div>
+        )}
+
+        {/* SUPPORTING DETAIL — configuration, which is only worth a tile when
+            something is missing from it. */}
         <div className="animate-rise lg:col-span-4">
           <StatCard
             label="Verified websites"
@@ -136,9 +190,14 @@ export function DashboardPage() {
         </div>
         <div className="animate-rise lg:col-span-4">
           <StatCard
-            label="Business"
-            value={business.name}
-            sub={business.industry ?? 'No industry set'}
+            label="Answers it knows"
+            value={summary ? String(summary.knowledgeItems) : '—'}
+            sub={
+              summary && summary.knowledgeItems === 0
+                ? 'It cannot answer anything yet'
+                : 'From your website and your own edits'
+            }
+            to="/dashboard/knowledge"
           />
         </div>
         <div className="animate-rise lg:col-span-4">
@@ -163,15 +222,27 @@ export function DashboardPage() {
                 to="/onboarding"
               />
               <NextStep
-                done={false}
+                done={Boolean(summary && summary.knowledgeItems > 0)}
                 title="Teach it about your business"
                 description="Let us read your website, or write the answers yourself."
                 to="/dashboard/knowledge"
               />
               <NextStep
-                done={false}
+                // Nothing proves the snippet is pasted in except traffic
+                // arriving, so a question having been asked IS the test. It is
+                // also the only honest one: a checklist that ticks itself when
+                // the owner visits the install page would claim the widget is
+                // live when it is not.
+                done={Boolean(summary && summary.asked > 0)}
                 title="Add the widget to your site"
-                description="One line of code, and your receptionist is live. Coming soon."
+                description="One line of code, and your receptionist starts answering."
+                to="/dashboard/widget"
+              />
+              <NextStep
+                done={Boolean(summary && summary.asked > 0 && summary.leadsWaiting === 0)}
+                title="Reply to anyone waiting"
+                description="When it cannot answer, it takes their number instead. Those people are expecting to hear back."
+                to="/dashboard/leads"
               />
             </ul>
           </CardBody>
@@ -186,18 +257,47 @@ function StatCard({
   value,
   sub,
   to,
+  urgent,
 }: {
   label: string;
   value: string;
   sub: string;
   to?: string;
+  /**
+   * For the one tile that is a person waiting rather than a number.
+   *
+   * Set larger and tinted, because somebody who asked an hour ago should not
+   * be drawn at the same weight as which industry the owner picked. Exactly
+   * one tile may be urgent: two competing emphases are none.
+   */
+  urgent?: boolean;
 }) {
   const content = (
-    <Card className={to ? 'interactive hover:shadow-raised hover:-translate-y-px' : ''}>
+    <Card
+      className={`${to ? 'interactive hover:shadow-raised hover:-translate-y-px' : ''} ${
+        urgent ? 'border-emerald-300 bg-emerald-50/60' : ''
+      }`}
+    >
       <CardBody>
-        <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
-        <p className="mt-1 truncate text-sm font-semibold text-ink-900">{value}</p>
-        <p className="mt-0.5 truncate text-xs text-ink-500">{sub}</p>
+        <p
+          className={`text-xs font-medium uppercase tracking-wide ${
+            urgent ? 'text-emerald-800' : 'text-ink-500'
+          }`}
+        >
+          {label}
+        </p>
+        <p
+          className={
+            urgent
+              ? 'text-display mt-1 text-3xl font-semibold text-emerald-900'
+              : 'mt-1 truncate text-sm font-semibold text-ink-900'
+          }
+        >
+          {value}
+        </p>
+        <p className={`mt-0.5 truncate text-xs ${urgent ? 'text-emerald-700' : 'text-ink-500'}`}>
+          {sub}
+        </p>
       </CardBody>
     </Card>
   );

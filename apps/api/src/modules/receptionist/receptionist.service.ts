@@ -63,29 +63,7 @@ export class ReceptionistService {
     previousQuestion?: string,
     referer?: string,
   ): Promise<AskResult> {
-    const { domains, mode } = await this.loadServingContext(businessId);
-
-    // TEST mode businesses may be developed against from localhost; LIVE ones
-    // never can. See widget-origin.ts.
-    const decision = checkWidgetOrigin(origin, domains, {
-      allowLocalhost: mode === 'TEST',
-      referer,
-    });
-
-    if (!decision.allowed) {
-      // One neutral refusal regardless of reason. Distinguishing "not verified"
-      // from "no such business" would turn this into a directory of who uses
-      // the product and on which domains.
-      this.logger.warn(
-        `Widget request refused for business ${businessId}: ${decision.reason} (origin: ${
-          origin ?? 'none'
-        })`,
-      );
-      throw codedForbidden(
-        ErrorCode.WIDGET_ORIGIN_NOT_ALLOWED,
-        'This receptionist is not available on this site.',
-      );
-    }
+    const { mode } = await this.authorizeWidget(businessId, origin, referer);
 
     // The session key is what marks this as real visitor traffic, so passing
     // it here is what makes the gap report exist at all. Dropping it fails
@@ -197,21 +175,49 @@ export class ReceptionistService {
     origin: string | undefined,
     referer?: string,
   ): Promise<{ businessName: string; mode: 'LIVE' | 'TEST'; greeting: string }> {
-    const { domains, mode, businessName } = await this.loadServingContext(businessId);
-    const decision = checkWidgetOrigin(origin, domains, {
-      allowLocalhost: mode === 'TEST',
-      referer,
-    });
-    if (!decision.allowed) {
-      throw codedForbidden(
-        ErrorCode.WIDGET_ORIGIN_NOT_ALLOWED,
-        'This receptionist is not available on this site.',
-      );
-    }
+    const { mode, businessName } = await this.authorizeWidget(businessId, origin, referer);
     return {
       businessName,
       mode,
       greeting: `Hi — I can answer questions about ${businessName}. What would you like to know?`,
+    };
+  }
+
+  /**
+   * Counts for the dashboard, and nothing else.
+   *
+   * Separate from `insights` on purpose. `insights` returns the questions
+   * themselves — visitor-authored text — and the dashboard has no business
+   * holding that to render four numbers. This returns numbers only, so the
+   * front page of the product cannot leak anything by accident.
+   */
+  async summary(
+    businessId: string,
+    days = 30,
+  ): Promise<{
+    asked: number;
+    answered: number;
+    unanswered: number;
+    knowledgeItems: number;
+  }> {
+    const since = new Date(Date.now() - days * 86_400_000);
+    const [grouped, knowledgeItems] = await Promise.all([
+      this.prisma.receptionistQuestion.groupBy({
+        by: ['confidence'],
+        where: { businessId, createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      this.prisma.knowledgeItem.count({ where: { businessId, deletedAt: null } }),
+    ]);
+
+    const count = (c: string) => grouped.find((g) => g.confidence === c)?._count._all ?? 0;
+    return {
+      asked: grouped.reduce((n, g) => n + g._count._all, 0),
+      // `unsure` counts as answered here: the visitor was given the owner's
+      // own words, hedged. Only `unknown` is a question the product failed.
+      answered: count('answered') + count('unsure'),
+      unanswered: count('unknown'),
+      knowledgeItems,
     };
   }
 
@@ -278,6 +284,48 @@ export class ReceptionistService {
         unknown: count('unknown'),
       },
     };
+  }
+
+  /**
+   * The gate every public widget request passes through.
+   *
+   * Extracted so that `ask`, `config` and lead capture cannot drift apart.
+   * They had the same check copied twice already, and a third copy on the one
+   * route that writes a stranger's phone number into the database is not a
+   * risk worth taking for the sake of locality — a future route that forgets
+   * to call this is a visible omission, whereas a subtly different inline copy
+   * is not.
+   */
+  async authorizeWidget(
+    businessId: string,
+    origin: string | undefined,
+    referer: string | undefined,
+  ): Promise<{ businessName: string; mode: 'LIVE' | 'TEST' }> {
+    const { domains, mode, businessName } = await this.loadServingContext(businessId);
+
+    // TEST mode businesses may be developed against from localhost; LIVE ones
+    // never can. See widget-origin.ts.
+    const decision = checkWidgetOrigin(origin, domains, {
+      allowLocalhost: mode === 'TEST',
+      referer,
+    });
+
+    if (!decision.allowed) {
+      // One neutral refusal regardless of reason. Distinguishing "not verified"
+      // from "no such business" would turn this into a directory of who uses
+      // the product and on which domains.
+      this.logger.warn(
+        `Widget request refused for business ${businessId}: ${decision.reason} (origin: ${
+          origin ?? 'none'
+        })`,
+      );
+      throw codedForbidden(
+        ErrorCode.WIDGET_ORIGIN_NOT_ALLOWED,
+        'This receptionist is not available on this site.',
+      );
+    }
+
+    return { businessName, mode };
   }
 
   /**

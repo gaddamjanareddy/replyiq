@@ -85,6 +85,17 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
     retryable: false,
     tone: 'error',
   },
+  LEAD_CONTACT_UNUSABLE: {
+    // The only error copy in the product written for a STRANGER rather than
+    // for the owner, and the only one shown inside the widget. It has to blame
+    // the box rather than the person, and it has to say what shape of thing
+    // would work — "invalid contact" leaves someone guessing on a form they
+    // were already reluctant to fill in.
+    title: 'That does not look like a phone number or an email address.',
+    detail: 'Check it over — for example 98765 43210, or you@example.com.',
+    retryable: true,
+    tone: 'warning',
+  },
   AUTH_RESET_UNAVAILABLE: {
     title: 'Password reset is unavailable right now.',
     // Honest rather than reassuring. The alternative - accepting the request

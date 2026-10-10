@@ -149,6 +149,7 @@ model Business {
 
   organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   receptionistQuestions ReceptionistQuestion[]
+  receptionistLeads     ReceptionistLead[]
   domains               BusinessDomain[]
   knowledgeSources      KnowledgeSource[]
   onboardingProgress    OnboardingProgress?
@@ -390,6 +391,69 @@ model ReceptionistQuestion {
   /// Serves the gap report directly: the unanswered questions, newest first.
   @@index([businessId, confidence, createdAt])
   @@map("receptionist_questions")
+}
+
+/// How the owner has dealt with a captured lead. Owner-set, never inferred:
+/// the product does not know whether a phone call happened.
+enum LeadStatus {
+  NEW
+  CONTACTED
+  ARCHIVED
+}
+
+/// How the visitor chose to be reached. Stored so the owner's list can offer a
+/// one-tap `tel:` or `mailto:` link, which is most of the value of the list on
+/// a phone.
+enum LeadContactKind {
+  EMAIL
+  PHONE
+}
+
+/// A visitor who asked something the receptionist would not guess at, and left
+/// a way to be contacted.
+///
+/// ── Why this is different from ReceptionistQuestion ───────────────────────
+/// Questions are deliberately anonymous: see that model's comment. A lead is
+/// the opposite and must not be confused with it. The visitor was asked for a
+/// contact detail, was told what it was for, and typed it anyway. That is
+/// volunteered first-party data belonging to the business, and the whole point
+/// of the record is that somebody rings them back.
+///
+/// The two are not joined. Linking a lead to its session's question history
+/// would retroactively de-anonymise every other question asked in that visit,
+/// which is exactly the property the question table exists to guarantee. The
+/// unanswered question is COPIED onto the lead instead, so the owner knows
+/// what to say without the join existing.
+model ReceptionistLead {
+  id         String          @id @default(uuid()) @db.Uuid
+  businessId String          @db.Uuid
+  /// Optional on purpose. A phone number alone is a usable lead, and every
+  /// additional required field loses people who were already halfway out.
+  name       String?         @db.VarChar(120)
+  /// Exactly what the visitor typed, trimmed. Shown to the owner as given,
+  /// because a number they do not recognise is worse than a number formatted
+  /// oddly.
+  contact     String         @db.VarChar(200)
+  contactKind LeadContactKind
+  /// The question that triggered the handover, copied at capture time.
+  question   String?         @db.VarChar(500)
+  /// Anything else the visitor chose to add.
+  message    String?         @db.VarChar(1000)
+  /// True when captured while the business was in Test Mode. Test data is
+  /// never mistakable for real data (PRD design principle 6), and a fake lead
+  /// counted as real would corrupt the only number that matters.
+  isTest     Boolean         @default(false)
+  status     LeadStatus      @default(NEW)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  /// The owner's list: one business's leads, newest first.
+  @@index([businessId, createdAt])
+  /// "What still needs a call" without scanning the handled ones.
+  @@index([businessId, status, createdAt])
+  @@map("receptionist_leads")
 }
 
 model OnboardingProgress {

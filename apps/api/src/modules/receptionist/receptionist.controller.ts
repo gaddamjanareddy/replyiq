@@ -4,6 +4,10 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ReceptionistService } from './receptionist.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { AskDto } from './dto/ask.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { CaptureLeadDto } from './dto/capture-lead.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { LeadService } from './lead.service.js';
 
 /**
  * The public receptionist API, called by the widget on a customer's website.
@@ -26,7 +30,10 @@ import { AskDto } from './dto/ask.dto.js';
 @Controller('receptionist/:businessId')
 @Throttle({ default: { limit: 30, ttl: 60_000 } })
 export class ReceptionistController {
-  constructor(private readonly receptionist: ReceptionistService) {}
+  constructor(
+    private readonly receptionist: ReceptionistService,
+    private readonly leads: LeadService,
+  ) {}
 
   /** What the widget needs to render before anyone has asked anything. */
   @Get('config')
@@ -64,5 +71,32 @@ export class ReceptionistController {
       dto.previousQuestion,
       referer,
     );
+  }
+
+  /**
+   * A visitor leaving their details after an answer we would not guess at.
+   *
+   * ── Why this is rate limited far harder than `ask` ────────────────────────
+   * `ask` is read-only and its 30-a-minute budget exists so a real
+   * conversation is not cut off. This one writes a row into a stranger's
+   * dashboard, and the failure it has to bound is not a chatty visitor but a
+   * script filling an owner's enquiry list with abuse until they turn the
+   * product off.
+   *
+   * A real person submits this once. Five in ten minutes covers a mistyped
+   * number, a change of mind and a second family member on the same office
+   * connection, and still makes bulk submission useless.
+   */
+  @Post('lead')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  captureLead(
+    @Param('businessId') businessId: string,
+    @Body() dto: CaptureLeadDto,
+    @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
+  ) {
+    return this.leads.capture(businessId, origin, referer, dto);
   }
 }

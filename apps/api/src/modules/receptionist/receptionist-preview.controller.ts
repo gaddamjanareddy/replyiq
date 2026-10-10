@@ -1,9 +1,23 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { ReceptionistService } from './receptionist.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { AskDto } from './dto/ask.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { UpdateLeadDto } from './dto/update-lead.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { LeadService } from './lead.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { OrganizationGuard } from '../auth/guards/organization.guard.js';
 
@@ -25,7 +39,10 @@ import { OrganizationGuard } from '../auth/guards/organization.guard.js';
 @UseGuards(JwtAuthGuard, OrganizationGuard)
 @Controller('businesses/:businessId/receptionist')
 export class ReceptionistPreviewController {
-  constructor(private readonly receptionist: ReceptionistService) {}
+  constructor(
+    private readonly receptionist: ReceptionistService,
+    private readonly leads: LeadService,
+  ) {}
 
   @Post('preview')
   @HttpCode(HttpStatus.OK)
@@ -53,6 +70,54 @@ export class ReceptionistPreviewController {
       success: true,
       message: 'Receptionist insights',
       data: await this.receptionist.insights(businessId),
+    };
+  }
+
+  /**
+   * Numbers for the dashboard: how the receptionist is doing, and how many
+   * people are waiting for a reply. Deliberately carries no visitor text and
+   * no contact details — see `ReceptionistService.summary`.
+   */
+  @Get('summary')
+  async summary(@Param('businessId') businessId: string) {
+    const [receptionist, leadsWaiting] = await Promise.all([
+      this.receptionist.summary(businessId),
+      this.leads.newCount(businessId),
+    ]);
+    return {
+      success: true,
+      message: 'Receptionist summary',
+      data: { ...receptionist, leadsWaiting },
+    };
+  }
+
+  /**
+   * The enquiries the receptionist captured.
+   *
+   * The only endpoint in the product that returns a third party's contact
+   * details, so it sits behind the session and the organization guard with
+   * nothing clever about it.
+   */
+  @Get('leads')
+  async listLeads(@Param('businessId') businessId: string) {
+    return {
+      success: true,
+      message: 'Captured enquiries',
+      data: await this.leads.list(businessId),
+    };
+  }
+
+  /** Mark an enquiry as called back, or archive it. */
+  @Patch('leads/:leadId')
+  async updateLead(
+    @Param('businessId') businessId: string,
+    @Param('leadId') leadId: string,
+    @Body() dto: UpdateLeadDto,
+  ) {
+    return {
+      success: true,
+      message: 'Enquiry updated',
+      data: await this.leads.updateStatus(businessId, leadId, dto.status),
     };
   }
 }

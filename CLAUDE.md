@@ -40,6 +40,11 @@ Every answer is a passage the owner published, returned verbatim, or an honest
 customer, and the owner hears about it from them rather than from us. This is
 also the differentiator — see `docs/product-spec/18-DIFFERENTIATION.md`.
 
+The "I don't know" is a **handover, not a dead end**: the widget offers to take
+the visitor's number and the owner is emailed. That is what makes the honesty
+rule an asset rather than a cost, and it is why nobody should ever be tempted
+to soften the refusal — see `docs/STRATEGY.md` §3.3.
+
 Retrieval is a three-rung ladder in `receptionist.service.ts`: all terms
 (confident) → any term (hedged) → previous question folded in (hedged). Anything
 below the top rung is *always* offered with a hedge, however high it scored.
@@ -86,6 +91,14 @@ tried and reverted.
 `receptionist_questions` stores the question, the confidence, and an ephemeral
 per-visit key. No IP, no user agent, no cookie, nothing identifying. Keep it
 that way.
+
+`receptionist_leads` is the one deliberate exception and a narrow one: the
+visitor was asked for a contact detail, told what it was for, and typed it
+anyway. Nothing is inferred, nothing is enriched, and the two tables are *not
+joined* — a lead carries no session key, so attaching a name to a lead cannot
+retroactively de-anonymise the other questions asked during that visit. The
+unanswered question is copied onto the lead instead. A future feature that
+wants to link the two is the thing this paragraph exists to refuse.
 
 ---
 

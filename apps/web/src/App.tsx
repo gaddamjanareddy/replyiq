@@ -11,6 +11,7 @@ import { KnowledgePage } from './pages/KnowledgePage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { WidgetPage } from './pages/WidgetPage';
+import { LeadsPage } from './pages/LeadsPage';
 import { LandingPage } from './pages/LandingPage';
 
 export function App() {
@@ -29,6 +30,7 @@ export function App() {
           <Route path="/dashboard/domains" element={<DomainsPage />} />
           <Route path="/dashboard/knowledge" element={<KnowledgePage />} />
           <Route path="/dashboard/widget" element={<WidgetPage />} />
+          <Route path="/dashboard/leads" element={<LeadsPage />} />
         </Route>
       </Route>
 
