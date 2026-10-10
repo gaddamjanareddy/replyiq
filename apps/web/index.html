@@ -7,7 +7,43 @@
          Proves we control this origin. Safe to publish: it is a public
          ownership token, not a secret, and it is what the verifier looks for. -->
     <meta name="replyiq-verification" content="replyiq-verify-1036c5a1-75b5-4337-8ba7-f51d4e8277ee" />
-    <title>ReplyIQ</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Metadata for when the link is shared rather than typed.
+
+      This is not decoration. The product's whole acquisition story is somebody
+      sending the URL to a business owner on WhatsApp or LinkedIn, and until
+      this existed that link previewed as the bare word "ReplyIQ" with no
+      description and no picture - which reads as a half-finished side project
+      regardless of what is behind it.
+
+      Hard-coded here rather than rendered, because a crawler reads the HTML it
+      is served and does not run the bundle. An SPA that sets its tags from
+      React has no tags as far as a link preview is concerned.
+    -->
+    <title>ReplyIQ — an AI receptionist that never invents an answer</title>
+    <meta
+      name="description"
+      content="ReplyIQ answers your website visitors using your own words, and says “I don’t know” rather than guessing — then takes their number so you can call them back."
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ReplyIQ" />
+    <meta property="og:title" content="An AI receptionist that never invents an answer" />
+    <meta
+      property="og:description"
+      content="It answers from what you already published, admits when it does not know, and captures the enquiry instead of losing the customer."
+    />
+    <meta property="og:url" content="https://replyiq-web.onrender.com/" />
+    <meta name="twitter:card" content="summary" />
+
+    <!-- Approximates `--color-ink-50` in each theme, so the mobile browser
+         chrome does not sit as a white bar above a dark page. sRGB hex rather
+         than the oklch token because `theme-color` is read by the OS before
+         any stylesheet exists; keep roughly in step if that token moves. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9fafb" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16181d" />
     <script>
       // Runs before first paint, on purpose.
       //

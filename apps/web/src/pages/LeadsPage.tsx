@@ -228,7 +228,7 @@ function LeadRow({
               // The second half of the loop: ring this person, then write the
               // answer so the next one never has to ask.
               <Link
-                to="/dashboard/knowledge"
+                to={`/dashboard/knowledge?answer=${encodeURIComponent(lead.question)}`}
                 className="ml-auto text-sm font-medium text-brand-700 underline"
               >
                 Answer this for next time

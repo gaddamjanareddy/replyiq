@@ -242,16 +242,28 @@ export function WidgetPage() {
                   {insights.gaps.map((gap) => (
                     <li
                       key={gap.question}
-                      className="animate-rise flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+                      className="animate-rise flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
                     >
                       {/* Visitor-authored text. React escapes it; it is never
                           interpolated into markup anywhere. */}
                       <span className="text-sm text-amber-800">{gap.question}</span>
-                      {gap.timesAsked > 1 && (
-                        <span className="shrink-0 text-xs font-medium text-amber-700">
-                          asked {gap.timesAsked}×
-                        </span>
-                      )}
+                      <span className="ml-auto flex shrink-0 items-center gap-3">
+                        {gap.timesAsked > 1 && (
+                          <span className="text-xs font-medium text-amber-700">
+                            asked {gap.timesAsked}×
+                          </span>
+                        )}
+                        {/* The whole point of the gap report: one click and
+                            this question is answered forever. A link to the
+                            knowledge page and "retype it" is where the loop
+                            quietly stops being used. */}
+                        <Link
+                          to={`/dashboard/knowledge?answer=${encodeURIComponent(gap.question)}`}
+                          className="interactive rounded-md bg-amber-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-800"
+                        >
+                          Answer this
+                        </Link>
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -259,7 +271,7 @@ export function WidgetPage() {
                   to="/dashboard/knowledge"
                   className="mt-3 inline-block text-sm font-medium text-brand-700 underline"
                 >
-                  Add answers for these
+                  See everything it knows
                 </Link>
               </div>
             ) : (

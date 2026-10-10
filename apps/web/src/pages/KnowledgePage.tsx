@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
 import { useBusiness } from '../hooks/useBusiness';
 import {
@@ -35,6 +35,22 @@ export function KnowledgePage() {
 
   const [error, setError] = useState<ErrorCopy | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+
+  /**
+   * `?answer=<question>` opens the dialog with the question already filled in.
+   *
+   * This is how a gap becomes knowledge in one click. The alternative - a link
+   * to this page and "now type the question again" - is the step where the
+   * loop breaks: the owner has already read the question once, and retyping
+   * somebody else's words from memory is both work and a chance to get them
+   * wrong.
+   *
+   * Carried in the URL rather than in router state so the link survives being
+   * bookmarked, opened in a new tab, or sent to a colleague - and so that a
+   * future email ("11 people asked this, answer it") can link straight here.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefilledQuestion = searchParams.get('answer');
   const [editing, setEditing] = useState<KnowledgeItem | null>(null);
 
   const summary = data?.summary;
@@ -120,8 +136,17 @@ export function KnowledgePage() {
 
       <AddAnswerDialog
         businessId={businessId}
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
+        open={showAdd || prefilledQuestion !== null}
+        initialQuestion={prefilledQuestion ?? ''}
+        onClose={() => {
+          setShowAdd(false);
+          if (prefilledQuestion !== null) {
+            // Dropped from the URL on close, or the dialog reopens on every
+            // re-render and the owner cannot get back to the page.
+            searchParams.delete('answer');
+            setSearchParams(searchParams, { replace: true });
+          }
+        }}
       />
       <EditAnswerDialog
         businessId={businessId}
@@ -401,15 +426,34 @@ function AddAnswerDialog({
   businessId,
   open,
   onClose,
+  initialQuestion = '',
 }: {
   businessId: string;
   open: boolean;
   onClose: () => void;
+  /** Pre-filled when the owner arrived from an unanswered question. */
+  initialQuestion?: string;
 }) {
   const createMutation = useCreateFaq(businessId);
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(initialQuestion);
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState<ErrorCopy | null>(null);
+
+  /**
+   * Re-seeded whenever the dialog opens, not only on mount.
+   *
+   * The component stays mounted between openings, so initialising state from
+   * the prop is a one-time thing and the second gap the owner clicks would
+   * arrive with the first one's question still in the box. Keyed on `open` so
+   * typing is never overwritten mid-edit.
+   */
+  useEffect(() => {
+    if (open) {
+      setQuestion(initialQuestion);
+      setAnswer('');
+      setError(null);
+    }
+  }, [open, initialQuestion]);
 
   const submit = async () => {
     setError(null);
@@ -427,8 +471,12 @@ function AddAnswerDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Add an answer"
-      description="Write it the way you'd say it to someone on the phone."
+      title={initialQuestion ? 'Answer this for next time' : 'Add an answer'}
+      description={
+        initialQuestion
+          ? 'Somebody asked this and the receptionist would not guess. Answer it once and it will handle it from now on.'
+          : "Write it the way you'd say it to someone on the phone."
+      }
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -451,6 +499,13 @@ function AddAnswerDialog({
           placeholder="Do you take NHS patients?"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          // Editable even when pre-filled. Visitors type in a hurry, and the
+          // owner knows better than we do what the question really was.
+          hint={
+            initialQuestion
+              ? 'This is what they typed. Tidy it up if it helps.'
+              : undefined
+          }
         />
         <div>
           <label htmlFor="answer" className="mb-1.5 block text-sm font-medium text-ink-700">
