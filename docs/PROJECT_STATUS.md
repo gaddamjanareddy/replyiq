@@ -1,12 +1,13 @@
 # ReplyIQ — project status
 
-**Last updated:** 2026-09-06
+**Last updated:** 2026-10-10
 
 The current state of the product: what works, what does not exist yet, what has
 been decided, and the operational facts that are not visible in the code.
 
 Read `CLAUDE.md` at the repo root first — it carries the rules that are
-load-bearing.
+load-bearing — then `STRATEGY.md`, which is now the highest-level document and
+says what we are trying to achieve and in what order.
 
 ---
 
@@ -22,8 +23,15 @@ The whole loop runs end to end, verified in a browser rather than only in tests.
 4. **The receptionist answers** — a 3.7kB embeddable widget, Shadow-DOM
    isolated, grounded in the owner's own words, hedging when unsure and
    admitting ignorance when it does not know.
-5. **The owner sees the gaps** — every visitor question is recorded with its
-   confidence; unanswered ones are surfaced as work, with repeats counted.
+5. **It captures the ones it cannot answer** — an honest "I don't know" offers
+   to take the visitor's number. The lead is stored with the question attached
+   and the owner is emailed, so they can ring back knowing what it is about.
+   Test-mode leads are kept, labelled, and excluded from every count.
+6. **The owner sees the gaps** — every visitor question is recorded with its
+   confidence; unanswered ones are surfaced with repeats counted, and one click
+   opens the add-answer dialog with the question already filled in.
+7. **A public front page** with the real widget answering on it, and link
+   metadata so the URL previews when it is shared.
 
 **Password reset** exists (token, single-use, 30-minute expiry, revokes every
 session). **Dark theme**, field-level validation errors, and a bento dashboard
@@ -35,16 +43,16 @@ WCAG AA in both themes.
 ## What does not exist yet
 
 - **Billing.** Nothing. Decided but unbuilt — see below.
-- **A public landing page.** There is no marketing site and no demo to send
-  anyone. This is the next build.
+- **An `og:image`.** Link previews are text-only.
+- **Conversation transcripts.** Questions are logged individually.
+- **Owner feedback on answers.** `STRATEGY.md` §5 wants "answers the owner
+  marks wrong < 3%" and there is no way to mark one.
 - **An LLM.** The answer engine is retrieval-only behind an `AnswerEngine`
   interface. This is a deliberate choice, not a gap: it costs nothing per
   conversation and cannot hallucinate. A model would improve phrasing, not
   truth, and would receive the same passages.
 - **Appointment booking, email/SMS channels, team seats.** All in the older
   specs, none built.
-- **Conversation transcripts.** Questions are logged individually; there is no
-  threaded view.
 
 ## Decisions taken (2026-09-06)
 
@@ -81,10 +89,28 @@ Competitors sit at $50–150/mo with a real per-message cost we do not have.
 
 ## Next
 
-1. Public landing page with a live demo of the receptionist answering questions
-   about ReplyIQ itself. For this product the demo is the pitch.
-2. Razorpay billing against test mode.
-3. Remaining polish: hierarchy pass is done, page-level motion is thin.
+1. **Razorpay billing against test mode.** Decided and unstarted. Needs an
+   account the owner holds; no live keys and no real money until there is a
+   customer.
+2. **Owner feedback on answers** — "this was wrong" from the dashboard, which
+   is the only missing input to the §5 accuracy number.
+3. **An `og:image`** so a shared link has a picture.
+4. **The production demo** — a business with `replyiq-web.onrender.com`
+   verified and `VITE_DEMO_BUSINESS_ID` set in Render, or the front page's
+   demo widget simply does not render.
+
+### Not verified yet
+
+The lead-capture integration suite (`lead.integration.test.ts`) has **not been
+run**: it needs Postgres, and Docker was not available in the session that
+wrote it. Everything else in the gate passed — 29/29 turbo tasks, 339 API unit
+tests, 198 web tests. Run it before trusting that suite:
+
+```bash
+docker compose up -d postgres
+cd packages/database && npx prisma migrate deploy
+cd ../../apps/api && npx vitest run --config vitest.integration.config.ts
+```
 
 Known debt is tracked in `UX-FINDINGS-2026-09-06.md` — all five original
 findings are closed.
