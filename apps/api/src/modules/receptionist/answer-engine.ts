@@ -152,10 +152,26 @@ function publicUrl(url: string | null): string | null {
  * Phrased as the receptionist being unsure, not as the visitor having asked
  * badly. "I'm not certain this is what you meant" invites a correction;
  * "your question was unclear" makes someone leave.
+ *
+ * Exported because the transcript view rebuilds what a visitor was shown
+ * rather than storing it. Reworded here, the transcripts follow; copied into
+ * the web app, they would quietly start showing something nobody was ever
+ * told. See `reconstructAnswer` in `receptionist.service.ts`.
  */
+export const HEDGE_TEXT = "I'm not certain this is exactly what you meant, but this may help:";
+
 function hedge(_question: string): string {
-  return "I'm not certain this is exactly what you meant, but this may help:";
+  return HEDGE_TEXT;
 }
+
+/**
+ * Stands in for an answer whose passage the owner has since deleted.
+ *
+ * Says what is missing and why instead of rendering an empty bubble, which
+ * would read as the receptionist having said nothing at all.
+ */
+export const DELETED_PASSAGE_TEXT =
+  'This was answered from a passage you have since deleted, so the wording is no longer available.';
 
 /**
  * What a business without any knowledge should say.

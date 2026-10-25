@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '@replyiq/database';
 import type { PrismaClient } from '@replyiq/database';
 import { ReceptionistService } from './receptionist.service.js';
+import { DELETED_PASSAGE_TEXT, DONT_KNOW_TEXT, HEDGE_TEXT } from './answer-engine.js';
 
 /**
  * The receptionist against a real database.
@@ -454,5 +455,235 @@ describe('the week-on-week comparison', () => {
     expect(trend.previous.asked).toBe(0);
     expect(trend.direction).toBe('NO_COMPARISON');
     expect(trend.days).toBe(7);
+  });
+});
+
+/**
+ * Reading a visit back as the conversation it was.
+ *
+ * The grouping, the ordering and the reconstruction all need a real database:
+ * `groupBy` ordered by an aggregate is the kind of query that typechecks and
+ * then throws, and "most recent visits" is easy to write as "most recent
+ * questions" without noticing until a busy conversation goes missing.
+ */
+describe('conversation transcripts', () => {
+  let convBusinessId: string;
+  let convOrgId: string;
+  let itemId: string;
+
+  /** One recorded question in a given visit, at a given age in minutes. */
+  const turn = async (
+    sessionKey: string,
+    question: string,
+    confidence: string,
+    minutesAgo: number,
+  ) => {
+    await prisma.receptionistQuestion.create({
+      data: {
+        businessId: convBusinessId,
+        question,
+        confidence,
+        sessionKey,
+        itemId: confidence === 'unknown' ? null : itemId,
+        createdAt: new Date(Date.now() - minutesAgo * 60_000),
+      },
+    });
+  };
+
+  beforeAll(async () => {
+    const org = await prisma.organization.create({
+      data: { name: `CONV-ORG-${randomUUID().slice(0, 8)}` },
+    });
+    convOrgId = org.id;
+    const business = await prisma.business.create({
+      data: { organizationId: convOrgId, name: 'Conversation Dental' },
+    });
+    convBusinessId = business.id;
+
+    const source = await prisma.knowledgeSource.create({
+      data: {
+        businessId: convBusinessId,
+        type: 'FAQ',
+        status: 'READY',
+        url: 'internal:owner-authored',
+        title: 'Written by you',
+      },
+    });
+    const item = await prisma.knowledgeItem.create({
+      data: {
+        businessId: convBusinessId,
+        sourceId: source.id,
+        question: 'What are your opening hours?',
+        content: 'We open Monday to Friday, 9am to 5:30pm.',
+        position: 0,
+      },
+    });
+    itemId = item.id;
+
+    // The older visit: one question, answered.
+    await turn('visit-older', 'when do you open', 'answered', 600);
+
+    // The newer visit: three questions, ending in a gap. Seeded out of order
+    // so a missing `orderBy` on the turns shows up.
+    await turn('visit-newer', 'do you do emergencies', 'unsure', 28);
+    await turn('visit-newer', 'when do you open', 'answered', 30);
+    await turn('visit-newer', 'do you take crypto', 'unknown', 26);
+  });
+
+  afterAll(async () => {
+    await prisma.receptionistQuestion.deleteMany({ where: { businessId: convBusinessId } });
+    await prisma.knowledgeItem.deleteMany({ where: { businessId: convBusinessId } });
+    await prisma.knowledgeSource.deleteMany({ where: { businessId: convBusinessId } });
+    await prisma.business.deleteMany({ where: { id: convBusinessId } });
+    await prisma.organization.deleteMany({ where: { id: convOrgId } });
+  });
+
+  it('groups a visit into one conversation, newest visit first', async () => {
+    const { conversations } = await service.conversations(convBusinessId);
+
+    expect(conversations).toHaveLength(2);
+    expect(conversations[0]?.turns).toHaveLength(3);
+    expect(conversations[1]?.turns).toHaveLength(1);
+  });
+
+  it('reads the turns in the order they were asked', async () => {
+    // The sequence is the whole reason this view exists. Seeded out of order
+    // on purpose, so an unordered read cannot pass by luck.
+    const { conversations } = await service.conversations(convBusinessId);
+    expect(conversations[0]?.turns.map((t) => t.question)).toEqual([
+      'when do you open',
+      'do you do emergencies',
+      'do you take crypto',
+    ]);
+  });
+
+  it('rebuilds what the visitor was actually shown', async () => {
+    const { conversations } = await service.conversations(convBusinessId);
+    const turns = conversations[0]?.turns ?? [];
+
+    // Answered: the owner's passage, verbatim and unadorned.
+    expect(turns[0]?.answer).toBe('We open Monday to Friday, 9am to 5:30pm.');
+    // Hedged: the same passage behind the hedge the visitor saw.
+    expect(turns[1]?.answer).toBe(`${HEDGE_TEXT}\n\nWe open Monday to Friday, 9am to 5:30pm.`);
+    // Unknown: the refusal, which depends on no stored content at all.
+    expect(turns[2]?.answer).toBe(DONT_KNOW_TEXT);
+  });
+
+  it('names the passage each answer came from', async () => {
+    const { conversations } = await service.conversations(convBusinessId);
+    const turns = conversations[0]?.turns ?? [];
+    expect(turns[0]?.answeredWith).toEqual({
+      id: itemId,
+      question: 'What are your opening hours?',
+    });
+    // A refusal came from nothing, and must not claim otherwise.
+    expect(turns[2]?.answeredWith).toBeNull();
+  });
+
+  it('flags the visit that ran out of road', async () => {
+    const { conversations } = await service.conversations(convBusinessId);
+    expect(conversations[0]?.hasGap).toBe(true);
+    expect(conversations[1]?.hasGap).toBe(false);
+  });
+
+  /**
+   * CLAUDE.md rule 7. A lead carries no session key so that a name typed into
+   * the widget can never be attached to the other questions asked on the way
+   * there, and the session key itself is not published. This is the view that
+   * would quietly undo both, so it is the view that has to be checked.
+   */
+  it('publishes neither the session key nor a link to an enquiry', async () => {
+    const { conversations } = await service.conversations(convBusinessId);
+    const serialised = JSON.stringify(conversations);
+
+    expect(serialised).not.toContain('visit-newer');
+    expect(serialised).not.toContain('visit-older');
+    expect(serialised).not.toMatch(/sessionKey|leadId/i);
+  });
+
+  it('takes the most recent VISITS, not the most recent questions', async () => {
+    // A chatty visit must not be truncated by the row limit. With a limit of
+    // one, the whole of the newer visit survives and the older is dropped —
+    // the other way round, a row-limited read would return part of each.
+    const { conversations } = await service.conversations(convBusinessId, 30, 1);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0]?.turns).toHaveLength(3);
+  });
+
+  it('says so when the passage behind an answer has been deleted', async () => {
+    const org = await prisma.organization.create({
+      data: { name: `CONV-DEL-${randomUUID().slice(0, 8)}` },
+    });
+    const business = await prisma.business.create({
+      data: { organizationId: org.id, name: 'Deleted Passage Co' },
+    });
+    await prisma.receptionistQuestion.create({
+      data: {
+        businessId: business.id,
+        question: 'when do you open',
+        confidence: 'answered',
+        sessionKey: 'visit-deleted',
+        // Points at a passage that is not in this business's knowledge base,
+        // which is what a deleted one looks like: nulled, never cascaded.
+        itemId: randomUUID(),
+      },
+    });
+
+    const { conversations } = await service.conversations(business.id);
+    expect(conversations[0]?.turns[0]?.answer).toBe(DELETED_PASSAGE_TEXT);
+    expect(conversations[0]?.turns[0]?.answeredWith).toBeNull();
+
+    await prisma.receptionistQuestion.deleteMany({ where: { businessId: business.id } });
+    await prisma.business.deleteMany({ where: { id: business.id } });
+    await prisma.organization.deleteMany({ where: { id: org.id } });
+  });
+
+  it('returns nothing for a business nobody has spoken to', async () => {
+    const org = await prisma.organization.create({
+      data: { name: `CONV-NEW-${randomUUID().slice(0, 8)}` },
+    });
+    const business = await prisma.business.create({
+      data: { organizationId: org.id, name: 'Nobody Called' },
+    });
+
+    const { conversations } = await service.conversations(business.id);
+    expect(conversations).toEqual([]);
+
+    await prisma.business.deleteMany({ where: { id: business.id } });
+    await prisma.organization.deleteMany({ where: { id: org.id } });
+  });
+
+  it('returns the same order every time when timestamps tie', async () => {
+    // Two visits that end at the same instant. Without a second sort key
+    // Postgres may order them differently per call, which reshuffles the page
+    // on refresh and makes the visit on the `take` boundary flicker in and
+    // out. Seeded here because real traffic almost never ties, so nothing
+    // else would catch a missing tiebreak.
+    const at = new Date(Date.now() - 90 * 60_000);
+    for (const key of ['tie-a', 'tie-b', 'tie-c']) {
+      await prisma.receptionistQuestion.create({
+        data: {
+          businessId: convBusinessId,
+          question: `tied ${key}`,
+          confidence: 'answered',
+          sessionKey: key,
+          itemId,
+          createdAt: at,
+        },
+      });
+    }
+
+    const once = await service.conversations(convBusinessId);
+    const twice = await service.conversations(convBusinessId);
+    expect(once.conversations.map((c) => c.id)).toEqual(twice.conversations.map((c) => c.id));
+
+    await prisma.receptionistQuestion.deleteMany({
+      where: { businessId: convBusinessId, sessionKey: { in: ['tie-a', 'tie-b', 'tie-c'] } },
+    });
+  });
+
+  it('does not reach into another business’s visits', async () => {
+    const { conversations } = await service.conversations(businessId);
+    expect(JSON.stringify(conversations)).not.toContain('do you take crypto');
   });
 });

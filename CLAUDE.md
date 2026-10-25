@@ -107,6 +107,13 @@ retroactively de-anonymise the other questions asked during that visit. The
 unanswered question is copied onto the lead instead. A future feature that
 wants to link the two is the thing this paragraph exists to refuse.
 
+Conversation transcripts were the first feature to want it, and did not get
+it: `/dashboard/conversations` groups a visit by its session key, shows the
+turns in order — and says on the page that it is not linked to enquiries, so
+the next person to ask for it finds the reason before they ask. The session
+key is not published to the browser either; a conversation is identified by
+its first question's id.
+
 ---
 
 ## Where the truth lives

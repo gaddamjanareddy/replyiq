@@ -79,6 +79,22 @@ export class ReceptionistPreviewController {
   }
 
   /**
+   * Recent visits, each read as the conversation it was.
+   *
+   * Carries no session key and no link to an enquiry — see
+   * `ReceptionistService.conversations` for why the second of those is a
+   * refusal rather than an omission.
+   */
+  @Get('conversations')
+  async conversations(@Param('businessId') businessId: string) {
+    return {
+      success: true,
+      message: 'Recent conversations',
+      data: await this.receptionist.conversations(businessId),
+    };
+  }
+
+  /**
    * The owner's verdict on one answer.
    *
    * The only way the product learns it got something wrong. Nothing automatic

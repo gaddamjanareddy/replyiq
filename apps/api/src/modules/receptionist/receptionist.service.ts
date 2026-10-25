@@ -4,6 +4,9 @@ import { Prisma, PrismaClient } from '@replyiq/database';
 import { computeServiceMode } from '../../common/business/service-mode.js';
 import { ErrorCode, codedForbidden, codedNotFound } from '../../common/errors/error-codes.js';
 import {
+  DELETED_PASSAGE_TEXT,
+  DONT_KNOW_TEXT,
+  HEDGE_TEXT,
   NO_KNOWLEDGE_TEXT,
   RetrievalAnswerEngine,
   type Answer,
@@ -314,6 +317,161 @@ export class ReceptionistService {
   }
 
   /**
+   * One visit, read the way it happened.
+   *
+   * ── Why the flat list was not enough ──────────────────────────────────────
+   * Questions were logged individually, so the owner saw three unrelated rows
+   * where there had been one conversation. The sequence is the part that
+   * carries the meaning: "what are your hours" → "do you do emergencies" →
+   * "I don't have an answer for that one" is the product working and then
+   * running out of road, and as three separate lines it reads as nothing.
+   *
+   * Grouping is by `sessionKey`, which already exists for exactly this and is
+   * random and per-visit. No new data is collected to build this view.
+   *
+   * ── What this deliberately does NOT show ─────────────────────────────────
+   * Whether that visitor went on to leave their phone number.
+   *
+   * It is the obvious next line of the story and it is the thing CLAUDE.md
+   * rule 7 exists to refuse. A lead carries no session key precisely so that
+   * a name typed into the widget can never be attached to the other questions
+   * someone asked on the way there. Joining the two tables here would undo
+   * that for every visit at once, retroactively, and the owner would not have
+   * to do anything to cause it. The enquiry is in Enquiries, with its own
+   * question copied onto it; that is the whole of the link and it stays that
+   * way.
+   *
+   * The session key itself never leaves the server either. Nothing in the UI
+   * needs it, and an opaque per-visitor token on screen is an invitation to
+   * start treating it as a handle for a person.
+   */
+  async conversations(
+    businessId: string,
+    days = 30,
+    limit = MAX_CONVERSATIONS,
+  ): Promise<{
+    conversations: Array<{
+      /** The first question's id. A conversation has no identifier of its
+       *  own, and minting one from the session key would publish it. */
+      id: string;
+      startedAt: Date;
+      endedAt: Date;
+      /** True if any question in the visit went unanswered. */
+      hasGap: boolean;
+      turns: Array<{
+        id: string;
+        question: string;
+        confidence: string;
+        askedAt: Date;
+        verdict: 'GOOD' | 'WRONG' | null;
+        /** What the visitor was shown. See `reconstructAnswer`. */
+        answer: string;
+        /** The passage it came from, or null once that has been deleted. */
+        answeredWith: { id: string; question: string | null } | null;
+      }>;
+    }>;
+  }> {
+    const since = new Date(Date.now() - days * 86_400_000);
+
+    /**
+     * The most recent visits, not the most recent questions.
+     *
+     * Taking the last fifty rows and grouping them in memory would silently
+     * truncate the busiest conversations - the ones most worth reading - and
+     * would do it more the better the product is working.
+     */
+    const visits = await this.prisma.receptionistQuestion.groupBy({
+      by: ['sessionKey'],
+      where: { businessId, createdAt: { gte: since } },
+      _max: { createdAt: true },
+      /**
+       * The session key breaks ties.
+       *
+       * Two visits can share a last-question timestamp, and without a second
+       * key Postgres is free to order them differently on every call - so the
+       * page quietly reshuffles on refresh, and the visits sitting on the
+       * `take` boundary appear and disappear. The key is arbitrary; being
+       * stable is the whole point.
+       */
+      orderBy: [{ _max: { createdAt: 'desc' } }, { sessionKey: 'asc' }],
+      take: limit,
+    });
+
+    if (visits.length === 0) return { conversations: [] };
+
+    const rows = await this.prisma.receptionistQuestion.findMany({
+      where: { businessId, sessionKey: { in: visits.map((v) => v.sessionKey) } },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        question: true,
+        confidence: true,
+        createdAt: true,
+        verdict: true,
+        itemId: true,
+        sessionKey: true,
+      },
+    });
+
+    /**
+     * The passages those answers came from, fetched once.
+     *
+     * No Prisma relation on purpose - `itemId` is nulled rather than cascaded
+     * when an item is deleted, so history survives the owner tidying their
+     * knowledge base. See the same note in `insights`.
+     */
+    const itemIds = [...new Set(rows.map((r) => r.itemId).filter((id): id is string => !!id))];
+    const items =
+      itemIds.length > 0
+        ? await this.prisma.knowledgeItem.findMany({
+            where: { id: { in: itemIds }, businessId, deletedAt: null },
+            select: { id: true, question: true, content: true },
+          })
+        : [];
+    const byId = new Map(items.map((i) => [i.id, i]));
+
+    const grouped = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const bucket = grouped.get(row.sessionKey);
+      if (bucket) bucket.push(row);
+      else grouped.set(row.sessionKey, [row]);
+    }
+
+    // flatMap rather than map+filter so the empty case narrows for the
+    // compiler instead of being asserted away. A visit cannot actually be
+    // empty - it exists because it has rows - but saying so with `!` would
+    // make the next person's change the one that crashes.
+    const conversations = visits.flatMap((visit) => {
+      const turns = grouped.get(visit.sessionKey) ?? [];
+      const first = turns[0];
+      const last = turns[turns.length - 1];
+      if (!first || !last) return [];
+      return [
+        {
+          id: first.id,
+          startedAt: first.createdAt,
+          endedAt: last.createdAt,
+          hasGap: turns.some((t) => t.confidence === 'unknown'),
+          turns: turns.map((t) => {
+            const item = t.itemId ? byId.get(t.itemId) : undefined;
+            return {
+              id: t.id,
+              question: t.question,
+              confidence: t.confidence,
+              askedAt: t.createdAt,
+              verdict: t.verdict,
+              answer: reconstructAnswer(t.confidence, item?.content),
+              answeredWith: item ? { id: item.id, question: item.question } : null,
+            };
+          }),
+        },
+      ];
+    });
+
+    return { conversations };
+  }
+
+  /**
    * What visitors have been asking, for the owner.
    *
    * Returns the gaps first and separately, because they are the only part
@@ -619,4 +777,44 @@ function toWindow(
     answered: count('answered') + count('unsure'),
     unanswered: count('unknown'),
   };
+}
+
+/**
+ * How many visits the transcript view asks for.
+ *
+ * Reading is the job here, not auditing. Twenty is more than anyone scrolls
+ * in one sitting and small enough that the two queries behind it stay cheap.
+ */
+const MAX_CONVERSATIONS = 20;
+
+/**
+ * What the visitor was shown, rebuilt from what we kept.
+ *
+ * ── Why this is rebuilt rather than recorded ──────────────────────────────
+ * We store the question, the confidence and which passage answered - not the
+ * rendered reply. Storing the reply would copy the owner's entire knowledge
+ * base into the log table a line at a time, and buy nothing we cannot derive:
+ * the default engine returns the passage VERBATIM, and the hedge and the
+ * refusal are fixed strings.
+ *
+ * The one thing the reconstruction cannot know is whether the owner has
+ * edited that passage since. That is why the UI attributes the text to the
+ * passage it names rather than quoting it as something that was said - an
+ * owner-facing screen claiming "your receptionist said X" when it said Y is
+ * the same failure as a receptionist that invents, just pointed the other
+ * way. The attribution is also the more useful of the two, because the thing
+ * it names is the thing they can go and fix.
+ *
+ * ── Why the strings come from the server ─────────────────────────────────
+ * This looks like a breach of the rule that backend prose never reaches the
+ * screen, and is the opposite. These are the receptionist's own words, which
+ * the public `/ask` endpoint already returns and the widget already displays
+ * verbatim. Re-typing them in the web app would let the transcript drift away
+ * from what visitors are actually being told the moment anyone reworded the
+ * hedge - which is precisely the bug this screen exists to catch.
+ */
+function reconstructAnswer(confidence: string, content: string | undefined): string {
+  if (confidence === 'unknown') return DONT_KNOW_TEXT;
+  if (content === undefined) return DELETED_PASSAGE_TEXT;
+  return confidence === 'unsure' ? `${HEDGE_TEXT}\n\n${content}` : content;
 }
