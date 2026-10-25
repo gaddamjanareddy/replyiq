@@ -6,6 +6,7 @@ import type { PrismaClient } from '@replyiq/database';
 import { EmailService, type EmailMessage } from '../../infrastructure/email/email.service.js';
 import { ReceptionistService } from './receptionist.service.js';
 import { LeadService } from './lead.service.js';
+import { AuditService } from '../../infrastructure/audit/audit.service.js';
 
 /**
  * Lead capture against a real database.
@@ -87,6 +88,7 @@ beforeAll(async () => {
     receptionist,
     email,
     new ConfigService({ WEB_URL: 'https://app.example.com' }),
+    new AuditService(prisma as PrismaClient),
   );
 
   const org = await prisma.organization.create({
@@ -322,6 +324,88 @@ describe('tenant isolation on the owner routes', () => {
   });
 });
 
+/**
+ * The one hard delete in the product. Everything else is soft-deleted so a
+ * mistake is recoverable; this row holds a stranger's phone number, and the
+ * only reason to delete it is that nobody should be holding it any more.
+ */
+describe('erasing an enquiry', () => {
+  const actor = { userId: '', organizationId: '' };
+
+  beforeAll(async () => {
+    const owner = await prisma.user.findFirstOrThrow({ where: { organizationId } });
+    actor.userId = owner.id;
+    actor.organizationId = organizationId;
+  });
+
+  it('really removes the row, not just a flag', async () => {
+    await leads.capture(businessId, LIVE_ORIGIN, undefined, {
+      contact: '+91 98765 43210',
+      name: 'Priya',
+    });
+    const { leads: stored } = await leads.list(businessId);
+    const id = first(stored).id;
+
+    await leads.deleteLead(businessId, id, actor);
+
+    // Straight at the database, not through `list` — a soft delete would
+    // still satisfy a check that only asked the service.
+    const row = await prisma.receptionistLead.findUnique({ where: { id } });
+    expect(row).toBeNull();
+  });
+
+  it('records that it happened without recording who it was', async () => {
+    await leads.capture(businessId, LIVE_ORIGIN, undefined, {
+      contact: 'priya@gmail.com',
+      name: 'Priya Sharma',
+      question: 'do you do root canals on a Sunday',
+    });
+    const { leads: stored } = await leads.list(businessId);
+    const id = first(stored).id;
+
+    await leads.deleteLead(businessId, id, actor);
+
+    const entry = await prisma.auditLog.findFirstOrThrow({
+      where: { event: 'lead.deleted', resourceId: id },
+    });
+    expect(entry.userId).toBe(actor.userId);
+    expect(entry.businessId).toBe(businessId);
+
+    /**
+     * The audit row must not reinstate what the delete destroyed. An audit
+     * trail holding the contact details would make the deletion a lie.
+     */
+    const serialised = JSON.stringify(entry);
+    expect(serialised).not.toContain('priya@gmail.com');
+    expect(serialised).not.toContain('Priya');
+    expect(serialised).not.toContain('root canals');
+  });
+
+  it('refuses to delete a lead belonging to another business', async () => {
+    await leads.capture(businessId, LIVE_ORIGIN, undefined, { contact: '9876543210' });
+    const { leads: stored } = await leads.list(businessId);
+    const id = first(stored).id;
+
+    await expect(leads.deleteLead(otherBusinessId, id, actor)).rejects.toMatchObject({
+      response: { code: 'RESOURCE_NOT_FOUND' },
+    });
+
+    // Still there, which is the point of the check.
+    expect(await prisma.receptionistLead.findUnique({ where: { id } })).not.toBeNull();
+  });
+
+  it('is idempotent enough to fail clearly on a second attempt', async () => {
+    await leads.capture(businessId, LIVE_ORIGIN, undefined, { contact: '9876543210' });
+    const { leads: stored } = await leads.list(businessId);
+    const id = first(stored).id;
+
+    await leads.deleteLead(businessId, id, actor);
+    await expect(leads.deleteLead(businessId, id, actor)).rejects.toMatchObject({
+      response: { code: 'RESOURCE_NOT_FOUND' },
+    });
+  });
+});
+
 describe('telling the owner', () => {
   it('emails them with the question attached', async () => {
     await leads.capture(businessId, LIVE_ORIGIN, undefined, {
@@ -400,6 +484,7 @@ describe('telling the owner', () => {
       new ReceptionistService(prisma as PrismaClient),
       failing,
       new ConfigService(),
+      new AuditService(prisma as PrismaClient),
     );
 
     await service.capture(businessId, LIVE_ORIGIN, undefined, { contact: '9876543210' });
@@ -426,6 +511,7 @@ describe('telling the owner', () => {
       new ReceptionistService(prisma as PrismaClient),
       failing,
       new ConfigService(),
+      new AuditService(prisma as PrismaClient),
     );
 
     await expect(

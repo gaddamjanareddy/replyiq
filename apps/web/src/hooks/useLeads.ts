@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  deleteLead,
   getLeads,
   getReceptionistSummary,
   updateLeadStatus,
@@ -38,6 +39,18 @@ export function useReceptionistSummary(businessId: string | undefined) {
     },
     enabled: !!businessId,
     staleTime: 30_000,
+  });
+}
+
+export function useDeleteLead(businessId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (leadId: string) => deleteLead(businessId, leadId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['leads', businessId] });
+      // The dashboard's "waiting" count is derived from the same rows.
+      void queryClient.invalidateQueries({ queryKey: ['receptionist-summary', businessId] });
+    },
   });
 }
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth.store';
-import { useLeads, useUpdateLeadStatus } from '../hooks/useLeads';
+import { useDeleteLead, useLeads, useUpdateLeadStatus } from '../hooks/useLeads';
 import { contactHref, type Lead, type LeadStatus } from '../api/leads';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -10,6 +10,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { PageHeader } from '../components/layout/PageHeader';
 import { PageSkeleton } from '../components/ui/Skeleton';
+import { Modal } from '../components/ui/Modal';
 import { getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
 import { relativeTime } from '../lib/relative-time';
@@ -49,6 +50,13 @@ export function LeadsPage() {
 
   const { data, isLoading } = useLeads(businessId);
   const update = useUpdateLeadStatus(businessId);
+  const remove = useDeleteLead(businessId);
+  /**
+   * Confirmed before it happens, because it genuinely cannot be undone — the
+   * server deletes the row rather than flagging it. The house rule is to
+   * confirm the irreversible, and this is the only irreversible thing here.
+   */
+  const [confirming, setConfirming] = useState<Lead | null>(null);
   const [tab, setTab] = useState<LeadStatus>('NEW');
   const [error, setError] = useState<ErrorCopy | null>(null);
 
@@ -67,6 +75,17 @@ export function LeadsPage() {
   );
   const countFor = (status: LeadStatus) =>
     status === 'NEW' ? counts.new : status === 'CONTACTED' ? counts.contacted : counts.archived;
+
+  const erase = async (lead: Lead) => {
+    setError(null);
+    try {
+      await remove.mutateAsync(lead.id);
+      setConfirming(null);
+    } catch (err) {
+      setError(getErrorCopy(err));
+      setConfirming(null);
+    }
+  };
 
   const setStatus = async (lead: Lead, status: LeadStatus) => {
     setError(null);
@@ -178,14 +197,43 @@ export function LeadsPage() {
                 <LeadRow
                   key={lead.id}
                   lead={lead}
-                  busy={update.isPending}
+                  busy={update.isPending || remove.isPending}
                   onStatus={(status) => void setStatus(lead, status)}
+                  onDelete={() => setConfirming(lead)}
                 />
               ))}
             </ul>
           )}
         </>
       )}
+
+      <Modal
+        open={confirming !== null}
+        onClose={() => setConfirming(null)}
+        title="Delete this enquiry for good?"
+        description="This erases their name, contact details and question from our records. It cannot be undone, and we keep no copy."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirming(null)}>
+              Keep it
+            </Button>
+            <Button
+              variant="danger"
+              loading={remove.isPending}
+              loadingLabel="Deleting…"
+              onClick={() => confirming && void erase(confirming)}
+            >
+              Delete for good
+            </Button>
+          </>
+        }
+      >
+        {confirming && (
+          <p className="text-sm text-ink-700">
+            {confirming.name ?? 'Someone'} — {confirming.contact}
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -194,10 +242,12 @@ function LeadRow({
   lead,
   busy,
   onStatus,
+  onDelete,
 }: {
   lead: Lead;
   busy: boolean;
   onStatus: (status: LeadStatus) => void;
+  onDelete: () => void;
 }) {
   return (
     <li className="animate-rise">
@@ -256,9 +306,19 @@ function LeadRow({
                 Archive
               </Button>
             ) : (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onStatus('NEW')}>
-                Restore
-              </Button>
+              <>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => onStatus('NEW')}>
+                  Restore
+                </Button>
+                {/* Deletion is offered only on an archived enquiry. Reaching it
+                    takes two deliberate steps, which is the right amount of
+                    friction for the one action in the product that destroys
+                    data — and it keeps a destructive control away from the
+                    buttons used every day. */}
+                <Button size="sm" variant="danger" disabled={busy} onClick={onDelete}>
+                  Delete for good
+                </Button>
+              </>
             )}
             {lead.question && (
               // The second half of the loop: ring this person, then write the

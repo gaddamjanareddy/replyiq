@@ -1,14 +1,17 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
+  Request,
   UseGuards,
 } from '@nestjs/common';
+import type { JwtPayload } from '../../common/types/jwt-payload.interface.js';
 import { Throttle } from '@nestjs/throttler';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { ReceptionistService } from './receptionist.service.js';
@@ -127,6 +130,29 @@ export class ReceptionistPreviewController {
       success: true,
       message: 'Captured enquiries',
       data: await this.leads.list(businessId),
+    };
+  }
+
+  /**
+   * Erase an enquiry.
+   *
+   * Hard delete, unlike everything else in the product — see
+   * `LeadService.deleteLead` for why that is deliberate rather than an
+   * oversight.
+   */
+  @Delete('leads/:leadId')
+  async deleteLead(
+    @Param('businessId') businessId: string,
+    @Param('leadId') leadId: string,
+    @Request() req: { user: JwtPayload },
+  ) {
+    return {
+      success: true,
+      message: 'Enquiry deleted',
+      data: await this.leads.deleteLead(businessId, leadId, {
+        userId: req.user.sub,
+        organizationId: req.user.organizationId,
+      }),
     };
   }
 

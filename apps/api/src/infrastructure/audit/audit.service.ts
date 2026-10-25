@@ -21,6 +21,12 @@ export const AuditEvent = {
   /** The owner asked us to read their verified website. Recorded because it is
    *  an outbound crawl performed on their behalf, against their own property. */
   KNOWLEDGE_INGESTION_STARTED: 'knowledge.ingestion_started',
+  /** An enquiry was erased. The one hard delete in the product: it destroys a
+   *  third party's contact details on request, so the fact of it has to
+   *  survive even though the data must not. The audit row deliberately holds
+   *  no contact detail - a log that preserved what was deleted would make the
+   *  deletion a lie. */
+  LEAD_DELETED: 'lead.deleted',
 } as const;
 
 export type AuditEventName = (typeof AuditEvent)[keyof typeof AuditEvent];

@@ -72,6 +72,20 @@ export async function updateLeadStatus(
 }
 
 /**
+ * Erase an enquiry for good.
+ *
+ * A hard delete on the server, unlike everything else in the product. The row
+ * holds a stranger's contact details and the only reason to remove it is that
+ * nobody should be holding them any more, so "archive" would not be an
+ * honest answer.
+ */
+export async function deleteLead(businessId: string, leadId: string): Promise<void> {
+  await apiFetch(`/api/v1/businesses/${businessId}/receptionist/leads/${leadId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
  * A link that does the thing the owner is about to do anyway.
  *
  * On a phone this is most of the value of the list: it is useless if reaching

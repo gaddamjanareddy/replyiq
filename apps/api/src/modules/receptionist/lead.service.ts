@@ -8,6 +8,8 @@ import { ErrorCode, codedBadRequest, codedNotFound } from '../../common/errors/e
 import { EmailService, canDeliverEmail } from '../../infrastructure/email/email.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { ReceptionistService } from './receptionist.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { AuditService, AuditEvent } from '../../infrastructure/audit/audit.service.js';
 import {
   MAX_MESSAGE_LENGTH,
   MAX_NAME_LENGTH,
@@ -73,6 +75,7 @@ export class LeadService {
     private readonly receptionist: ReceptionistService,
     private readonly email: EmailService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -236,6 +239,59 @@ export class LeadService {
     }
 
     return { id: leadId, status };
+  }
+
+  /**
+   * Erase an enquiry for good.
+   *
+   * ── Why this is a hard delete, against the house rule ─────────────────────
+   * Everything else in the product is soft-deleted (PRD G6) so that a mistake
+   * is recoverable. This is the deliberate exception, and it has to be: the
+   * row holds a stranger's name and phone number, and the only reason to
+   * delete it is that someone should no longer be holding them. A soft delete
+   * would leave the data exactly where it was and call it gone, which is
+   * worse than not offering deletion at all.
+   *
+   * ARCHIVED remains for "dealt with" and "spam"; this is for "erase it".
+   *
+   * The audit row records that an enquiry was deleted, by whom, and when - and
+   * deliberately records NOTHING about who it was. An audit trail that
+   * preserved the contact details would reinstate the data the delete was
+   * supposed to destroy.
+   */
+  async deleteLead(
+    businessId: string,
+    leadId: string,
+    actor: { userId: string; organizationId: string },
+  ): Promise<{ id: string; deleted: true }> {
+    // Read first, so the audit row can note whether it was a test lead
+    // without holding anything identifying. Scoped by businessId here and in
+    // the delete below: defence in depth is the house rule for anything
+    // organization-scoped.
+    const lead = await this.prisma.receptionistLead.findFirst({
+      where: { id: leadId, businessId },
+      select: { id: true, isTest: true, status: true },
+    });
+
+    if (!lead) {
+      throw codedNotFound(ErrorCode.RESOURCE_NOT_FOUND, 'That enquiry no longer exists.');
+    }
+
+    await this.prisma.receptionistLead.delete({ where: { id: leadId } });
+
+    await this.audit.record({
+      event: AuditEvent.LEAD_DELETED,
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      businessId,
+      resourceType: 'receptionist_lead',
+      resourceId: leadId,
+      // No name, no contact, no question. See the comment above.
+      metadata: { isTest: lead.isTest, statusAtDeletion: lead.status },
+    });
+
+    this.logger.log(`Lead ${leadId} erased by user ${actor.userId}`);
+    return { id: leadId, deleted: true };
   }
 
   /**
