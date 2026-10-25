@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { ProgressBar } from '../components/ui/Stepper';
 import { PageSkeleton } from '../components/ui/Skeleton';
 import { ServiceModeBanner } from '../components/domains/ServiceModeBanner';
+import { describeTrend, describeVolume, type TrendTone } from '../lib/trend-copy';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -39,6 +40,12 @@ export function DashboardPage() {
   const statusBadge = onboardingStatusBadge(business.onboardingStatus);
   const modeBadge = serviceModeBadge(business.serviceMode);
   const verifiedDomains = domains.filter((d) => d.status === 'VERIFIED');
+  /**
+   * The comparison against the previous month, where there is an honest one.
+   * `describeTrend` returns null text for a business with no history, and the
+   * tile falls back to its plain caption rather than showing a placeholder.
+   */
+  const trend = summary ? describeTrend(summary.trend) : null;
 
   return (
     /**
@@ -158,7 +165,11 @@ export function DashboardPage() {
             <StatCard
               label="Questions answered"
               value={`${summary.answered} of ${summary.asked}`}
-              sub="In the last 30 days"
+              /* The trend replaces the caption rather than joining it: "In the
+                 last 30 days" and "up from 75% last month" say the same thing
+                 about the window, and two lines of it reads as padding. */
+              sub={trend?.text ?? 'In the last 30 days'}
+              tone={trend?.tone ?? 'neutral'}
               to="/dashboard/widget"
             />
           </div>
@@ -168,7 +179,10 @@ export function DashboardPage() {
             <StatCard
               label="Could not answer"
               value={String(summary.unanswered)}
-              sub="Each one is a short answer away"
+              /* Volume, not a verdict. A drop in failures means nothing
+                 without knowing whether anybody turned up — and this is the
+                 tile where that mistake would be made. */
+              sub={describeVolume(summary.trend) ?? 'Each one is a short answer away'}
               to="/dashboard/widget"
             />
           </div>
@@ -263,11 +277,20 @@ function StatCard({
   sub,
   to,
   urgent,
+  tone,
 }: {
   label: string;
   value: string;
   sub: string;
   to?: string;
+  /**
+   * Colour for the caption, when the caption is a comparison.
+   *
+   * Only ever decoration: the words already say "up from" or "down from", so
+   * an owner who cannot distinguish the two colours loses nothing. Colour
+   * carrying information on its own is the oldest accessibility bug there is.
+   */
+  tone?: TrendTone;
   /**
    * For the one tile that is a person waiting rather than a number.
    *
@@ -300,7 +323,17 @@ function StatCard({
         >
           {value}
         </p>
-        <p className={`mt-0.5 truncate text-xs ${urgent ? 'text-emerald-700' : 'text-ink-500'}`}>
+        {/* Clamped to two lines, not truncated to one.
+            `truncate` cut the trend comparison mid-word — "up from 69…" —
+            which is the most useful sentence on the dashboard and the only
+            one the owner cannot reconstruct from the number above it. Two
+            lines still contains a long list of domain names, which is what
+            the single line was protecting the layout from. */}
+        <p
+          className={`mt-0.5 line-clamp-2 text-xs ${
+            urgent ? 'text-emerald-700' : toneClass(tone)
+          }`}
+        >
           {sub}
         </p>
       </CardBody>
@@ -313,6 +346,17 @@ function StatCard({
   ) : (
     content
   );
+}
+
+/**
+ * The ramp is role-preserving rather than lightness-ordered, and these are
+ * the rungs with dark-theme overrides that invert — so they stay readable in
+ * both themes without a `dark:` variant. See the comments in `index.css`.
+ */
+function toneClass(tone?: TrendTone): string {
+  if (tone === 'good') return 'text-emerald-700';
+  if (tone === 'warn') return 'text-amber-700';
+  return 'text-ink-500';
 }
 
 function NextStep({

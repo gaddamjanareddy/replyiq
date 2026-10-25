@@ -51,6 +51,13 @@ below the top rung is *always* offered with a hedge, however high it scored.
 Never fold context into the primary query — it lets a stale question hijack a
 clear one, and there are tests that fail if you try.
 
+The same rule binds the numbers we show the *owner*. A dashboard that invents a
+trend is the same failure as a receptionist that invents an answer, and it is
+easier to commit by accident. `trend.ts` therefore refuses to call a change
+that one flipped question could have produced: the noise floor is derived from
+the smaller window (`100 / n` percentage points), never a fixed sample size,
+and an empty prior window produces `NO_COMPARISON` rather than "+100%".
+
 **2. Backend prose never reaches the screen.**
 The API returns stable codes; `apps/web/src/api/error-copy.ts` maps them to
 reviewed copy. A test fails if you add an `ErrorCode` without copy. Field

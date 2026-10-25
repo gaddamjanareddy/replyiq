@@ -12,6 +12,7 @@ import {
 } from './answer-engine.js';
 import { checkWidgetOrigin, type AllowedDomain } from './widget-origin.js';
 import { MAX_SUGGESTIONS, pickStarterQuestions } from './starter-questions.js';
+import { computeTrend, type Trend, type TrendWindow } from './trend.js';
 
 /**
  * The public receptionist: the only part of the product a visitor ever meets.
@@ -225,12 +226,29 @@ export class ReceptionistService {
     knowledgeItems: number;
     reviewed: number;
     markedWrong: number;
+    trend: Trend;
   }> {
-    const since = new Date(Date.now() - days * 86_400_000);
-    const [grouped, knowledgeItems, verdicts] = await Promise.all([
+    const now = Date.now();
+    const window = days * 86_400_000;
+    const since = new Date(now - window);
+    /**
+     * The window immediately before this one, of exactly the same length.
+     *
+     * Same length matters more than it looks: comparing thirty days against
+     * "everything before that" would make the comparison get easier every
+     * month the business stays open.
+     */
+    const previousSince = new Date(now - 2 * window);
+
+    const [grouped, previousGrouped, knowledgeItems, verdicts] = await Promise.all([
       this.prisma.receptionistQuestion.groupBy({
         by: ['confidence'],
         where: { businessId, createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      this.prisma.receptionistQuestion.groupBy({
+        by: ['confidence'],
+        where: { businessId, createdAt: { gte: previousSince, lt: since } },
         _count: { _all: true },
       }),
       this.prisma.knowledgeItem.count({ where: { businessId, deletedAt: null } }),
@@ -241,13 +259,15 @@ export class ReceptionistService {
       }),
     ]);
 
-    const count = (c: string) => grouped.find((g) => g.confidence === c)?._count._all ?? 0;
+    const current = toWindow(grouped);
+    const previous = toWindow(previousGrouped);
+
     return {
-      asked: grouped.reduce((n, g) => n + g._count._all, 0),
+      asked: current.asked,
       // `unsure` counts as answered here: the visitor was given the owner's
       // own words, hedged. Only `unknown` is a question the product failed.
-      answered: count('answered') + count('unsure'),
-      unanswered: count('unknown'),
+      answered: current.answered,
+      unanswered: current.unanswered,
       knowledgeItems,
       /**
        * Both numbers are reported, never just the percentage.
@@ -258,6 +278,13 @@ export class ReceptionistService {
        */
       reviewed: verdicts.reduce((n, g) => n + g._count._all, 0),
       markedWrong: verdicts.find((g) => g.verdict === 'WRONG')?._count._all ?? 0,
+      /**
+       * Whether any of this is better than last month. The rule for when a
+       * difference is worth claiming lives in `trend.ts`, where it can be
+       * tested — it is the kind of judgement that looks arbitrary in a
+       * template and is not.
+       */
+      trend: computeTrend(current, previous, days),
     };
   }
 
@@ -575,4 +602,21 @@ export class ReceptionistService {
       LIMIT ${MAX_PASSAGES}
     `;
   }
+}
+
+/**
+ * Collapse a confidence groupBy into the three numbers the dashboard and the
+ * trend both speak in. Shared so that the current and previous windows cannot
+ * drift into counting `unsure` differently — which would produce a trend out
+ * of nothing but a bug.
+ */
+function toWindow(
+  grouped: Array<{ confidence: string; _count: { _all: number } }>,
+): TrendWindow {
+  const count = (c: string) => grouped.find((g) => g.confidence === c)?._count._all ?? 0;
+  return {
+    asked: grouped.reduce((n, g) => n + g._count._all, 0),
+    answered: count('answered') + count('unsure'),
+    unanswered: count('unknown'),
+  };
 }

@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { Trend } from '../lib/trend-copy';
 
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'ARCHIVED';
 export type LeadContactKind = 'EMAIL' | 'PHONE';
@@ -48,6 +49,10 @@ export interface ReceptionistSummary {
   unanswered: number;
   knowledgeItems: number;
   leadsWaiting: number;
+  reviewed: number;
+  markedWrong: number;
+  /** This window against the one before it. See `../lib/trend-copy.ts`. */
+  trend: Trend;
 }
 
 export async function getReceptionistSummary(

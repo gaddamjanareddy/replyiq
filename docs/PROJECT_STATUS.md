@@ -43,7 +43,11 @@ session). **Dark theme**, field-level validation errors, and a bento dashboard
 are in. Contrast was measured, not eyeballed: every text/background pair clears
 WCAG AA in both themes.
 
-629 tests: 347 API unit, 198 web, 84 integration against a real database.
+The dashboard answers "is this getting better?": each window of questions is
+compared against the one immediately before it, and the comparison is withheld
+whenever a single flipped question could explain it. See `trend.ts`.
+
+659 tests: 358 API unit, 211 web, 90 integration against a real database.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
 
@@ -51,8 +55,6 @@ integration suite has been run.
 
 - **Billing.** Nothing. Decided but unbuilt — see below.
 - **Conversation transcripts.** Questions are logged individually.
-- **A trend over time.** The numbers are 30-day totals with nothing to compare
-  them against, so "is this getting better?" is unanswerable.
 - **An LLM.** The answer engine is retrieval-only behind an `AnswerEngine`
   interface. This is a deliberate choice, not a gap: it costs nothing per
   conversation and cannot hallucinate. A model would improve phrasing, not

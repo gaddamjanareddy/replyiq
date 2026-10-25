@@ -121,13 +121,17 @@ milestone numbering, which tracked engineering order rather than value.
 | Rung | The product | Status |
 |---|---|---|
 | **V1 — It answers** | Verified site becomes a knowledge base; a widget answers visitors in the owner's own words and admits ignorance. | **Built.** |
-| **V2 — It captures** | Every honest non-answer, and every clear buying signal, becomes a lead the owner can call. Owner is notified. | **Next.** |
+| **V2 — It captures** | Every honest non-answer, and every clear buying signal, becomes a lead the owner can call. Owner is notified. | **Built.** Capture, owner email, delivery outcome recorded, and deletion on request. |
 | **V3 — It improves** | Unanswered questions are clustered and answerable in one click. The knowledge base grows from real demand instead of imagination. | Partly built — gaps are listed, not actionable. |
-| **V4 — It proves** | The owner opens the dashboard and sees outcomes, not activity: enquiries captured, questions answered, what people keep asking. | Thin. Numbers exist on the wrong page. |
+| **V4 — It proves** | The owner opens the dashboard and sees outcomes, not activity: enquiries captured, questions answered, what people keep asking — and whether that is better than last month. | Built for the dashboard. Missing: conversation transcripts, and any view longer than two windows. |
 
-**V2 is the keystone and the current build.** Without it the product is a
-better-behaved version of a commodity, and the honesty rule reads as a
-weakness. With it, the honesty rule *is* the lead-generation mechanism.
+**V2 is the keystone.** Without it the product is a better-behaved version of
+a commodity, and the honesty rule reads as a weakness. With it, the honesty
+rule *is* the lead-generation mechanism.
+
+**V3 is the current build.** The gaps are listed but not yet answerable in one
+click, which is the step that turns the dashboard from a report into work the
+owner can finish.
 
 ### Explicitly after the ladder, not before
 

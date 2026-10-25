@@ -336,3 +336,123 @@ describe('rating an answer', () => {
     await prisma.organization.deleteMany({ where: { id: otherOrg.id } });
   });
 });
+
+/**
+ * The window arithmetic, against a real database.
+ *
+ * `computeTrend` is unit-tested; what cannot be is whether the two queries
+ * actually select the two windows they claim to. An off-by-one here type
+ * checks perfectly and produces a confident, wrong trend — the previous
+ * window silently containing the current one makes every month look steady.
+ *
+ * Its own business, because these rows are backdated and would otherwise
+ * show up in the summaries the tests above assert on.
+ */
+describe('the week-on-week comparison', () => {
+  const DAY = 86_400_000;
+  let trendBusinessId: string;
+  let trendOrgId: string;
+
+  /** Drop a recorded question `daysAgo` days into the past. */
+  const record = async (confidence: string, daysAgo: number) => {
+    await prisma.receptionistQuestion.create({
+      data: {
+        businessId: trendBusinessId,
+        question: `seeded ${confidence} ${daysAgo}d`,
+        confidence,
+        sessionKey: `t${randomUUID().replace(/-/g, '')}`.slice(0, 40),
+        createdAt: new Date(Date.now() - daysAgo * DAY),
+      },
+    });
+  };
+
+  beforeAll(async () => {
+    const org = await prisma.organization.create({
+      data: { name: `TREND-ORG-${randomUUID().slice(0, 8)}` },
+    });
+    trendOrgId = org.id;
+    const business = await prisma.business.create({
+      data: { organizationId: trendOrgId, name: 'Trend Dental' },
+    });
+    trendBusinessId = business.id;
+
+    // This window: 8 of 10 answered.
+    for (let i = 0; i < 8; i += 1) await record('answered', 5);
+    for (let i = 0; i < 2; i += 1) await record('unknown', 5);
+
+    // The window before: 5 of 10 answered.
+    for (let i = 0; i < 5; i += 1) await record('answered', 40);
+    for (let i = 0; i < 5; i += 1) await record('unknown', 40);
+
+    // Older than both windows, and deliberately all failures. If the lower
+    // bound is missing these land in "previous" and the product reports an
+    // improvement the business did not earn.
+    for (let i = 0; i < 20; i += 1) await record('unknown', 200);
+  });
+
+  afterAll(async () => {
+    await prisma.receptionistQuestion.deleteMany({ where: { businessId: trendBusinessId } });
+    await prisma.business.deleteMany({ where: { id: trendBusinessId } });
+    await prisma.organization.deleteMany({ where: { id: trendOrgId } });
+  });
+
+  it('splits the two windows at the right boundary', async () => {
+    const { trend } = await service.summary(trendBusinessId);
+
+    expect(trend.current).toEqual({ asked: 10, answered: 8, unanswered: 2 });
+    expect(trend.previous).toEqual({ asked: 10, answered: 5, unanswered: 5 });
+    expect(trend.days).toBe(30);
+  });
+
+  it('ignores anything older than the previous window', async () => {
+    // The twenty ancient failures are excluded, so `previous` is 50% and not
+    // the 17% it would be if the lower bound were dropped.
+    const { trend } = await service.summary(trendBusinessId);
+    expect(trend.previousRate).toBe(50);
+    expect(trend.rate).toBe(80);
+  });
+
+  it('reports the improvement the numbers support', async () => {
+    // Thirty points on ten questions each way: comfortably past the noise
+    // floor, which is ten points here.
+    const { trend } = await service.summary(trendBusinessId);
+    expect(trend.direction).toBe('BETTER');
+  });
+
+  it('reports the dashboard counts from the current window only', async () => {
+    // The headline figures and the trend must not disagree about what "now"
+    // means; they come from the same groupBy for exactly this reason.
+    const summary = await service.summary(trendBusinessId);
+    expect(summary.asked).toBe(10);
+    expect(summary.answered).toBe(8);
+    expect(summary.unanswered).toBe(2);
+  });
+
+  it('refuses to compare a business with no history', async () => {
+    const org = await prisma.organization.create({
+      data: { name: `TREND-NEW-${randomUUID().slice(0, 8)}` },
+    });
+    const fresh = await prisma.business.create({
+      data: { organizationId: org.id, name: 'Opened Yesterday' },
+    });
+
+    const { trend } = await service.summary(fresh.id);
+    expect(trend.direction).toBe('NO_COMPARISON');
+    expect(trend.rate).toBeNull();
+
+    await prisma.business.deleteMany({ where: { id: fresh.id } });
+    await prisma.organization.deleteMany({ where: { id: org.id } });
+  });
+
+  it('honours a shorter window at both ends', async () => {
+    // Seven days: the rows from five days ago are still in view, but the ones
+    // from forty days ago are now outside the PREVIOUS window too — so there
+    // is nothing to compare against rather than a trend borrowed from a month
+    // that is no longer being asked about.
+    const { trend } = await service.summary(trendBusinessId, 7);
+    expect(trend.current.asked).toBe(10);
+    expect(trend.previous.asked).toBe(0);
+    expect(trend.direction).toBe('NO_COMPARISON');
+    expect(trend.days).toBe(7);
+  });
+});
