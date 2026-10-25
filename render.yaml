@@ -28,17 +28,21 @@
 #     regularly, or upgrade before you have anything you would miss.
 # Upgrading later is a plan change in the dashboard - no code or config change.
 
-databases:
-  - name: replyiq-db
-    databaseName: replyiq
-    user: replyiq
-    plan: free
-    # Must match the API's region: `connectionString` below is the INTERNAL
-    # connection string, and Render's private networking does not cross
-    # regions. Leaving this unset defaulted it to Oregon while the API was in
-    # Singapore, which would have failed at first connection.
-    region: oregon
-    postgresMajorVersion: "17"
+# ── Database ─────────────────────────────────────────────────────────────────
+# Deliberately NOT a Render managed database any more.
+#
+# Render's free PostgreSQL is deleted 30 days after creation, with no backups
+# of any kind. That is exactly what happened: the database expired, the API's
+# start command runs `prisma migrate deploy` BEFORE the server, the migration
+# could not connect, and the service never came up. A free tier with an expiry
+# date is a scheduled outage.
+#
+# The database now lives on Neon's free plan, which is permanent rather than a
+# trial, needs no card, and explicitly does not delete data when a limit is
+# reached. Its URL is set in the Render dashboard as a secret, which is why
+# DATABASE_URL below is `sync: false` rather than `fromDatabase`.
+#
+# See docs/MIGRATE-TO-NEON.md.
 
 services:
   # ── API ─────────────────────────────────────────────────────────────────────
@@ -78,10 +82,15 @@ services:
       - key: NODE_ENV
         value: production
 
+      # Both are entered in the Render dashboard and never land in git.
+      # DATABASE_URL is Neon's POOLED url (the one containing "-pooler"),
+      # DIRECT_DATABASE_URL is the unpooled one. Migrations need the direct
+      # one: PgBouncer's transaction mode cannot carry the session-level
+      # advisory locks `prisma migrate` takes. See docs/MIGRATE-TO-NEON.md.
       - key: DATABASE_URL
-        fromDatabase:
-          name: replyiq-db
-          property: connectionString
+        sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
 
       # Generated once by Render and never shown in this file or in git.
       # Rotating them invalidates every existing session, which is the intended

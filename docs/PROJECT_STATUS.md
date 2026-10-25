@@ -74,37 +74,28 @@ Indicative pricing, not yet committed: free (1 site, ~50 conversations, badge),
 ~₹1,200/mo (1 site, 1,000 conversations), ~₹3,500/mo (5 sites, 5,000).
 Competitors sit at $50–150/mo with a real per-message cost we do not have.
 
-## ⚠️ Production is down (2026-10-10)
+## ⚠️ Production is down — and the fix is prepared (2026-10-25)
 
-`https://replyiq-api.onrender.com` accepts a TCP connection and never
-responds — three attempts at 90s, 120s and 280s. The static web service is
-fine, because it needs nothing.
+Down since 2026-10-10. `replyiq-api.onrender.com` accepts a TCP connection and
+never responds; the static web service is fine because it needs nothing.
 
-**Most likely the free Postgres has expired.** It was created in early
-September with a 30-day life, which lands exactly here, and the API's start
-command is:
+**Cause:** Render's free Postgres is deleted 30 days after creation. The API's
+start command runs `prisma migrate deploy` *before* `node main.js`, so a
+database it cannot reach means the process never starts. Ruled out: the
+deployed commit — the same build boots locally in ~8s with every route mapped.
 
-```
-(cd packages/database && npx prisma migrate deploy) && node apps/api/dist/src/main.js
-```
+**The fix is already in the repo.** The database moves to Neon's free plan,
+which is permanent, needs no card, and does not delete data at a limit. The
+schema now declares `directUrl`, `render.yaml` no longer provisions a managed
+database, and the whole path has been rehearsed against an empty database —
+all 11 migrations apply and all 13 tables build from scratch.
 
-If `migrate deploy` cannot reach the database it exits non-zero, the `&&`
-short-circuits, and the process never starts. That matches the symptom
-precisely: Render's router answers, nothing behind it does.
+**What remains is ~5 minutes of dashboard work that only the account owner can
+do:** create the Neon project and paste two connection strings into Render.
+Step by step in `MIGRATE-TO-NEON.md`.
 
-**Ruled out:** the deployed commit. The same build boots locally in ~8s
-against a local Postgres with every route mapped, including the new ones, and
-the whole gate plus 70 integration tests pass.
-
-**To fix** — this costs money, so it is the owner's call: upgrade the database
-in the Render dashboard. There is a 14-day grace period from expiry during
-which upgrading **keeps the data**; after that Render deletes it, and there
-are no backups on the free plan. If the data is already gone, `scripts/
-backup-db.sh` exists for next time and the schema rebuilds itself from the
-migrations on first boot.
-
-Check the Render logs for the API service to confirm before paying — if the
-tail shows `P1001: Can't reach database server`, that is this.
+**The old data is gone.** Render deleted it and the free plan had no backups.
+Nothing to migrate.
 
 ## Operational facts
 

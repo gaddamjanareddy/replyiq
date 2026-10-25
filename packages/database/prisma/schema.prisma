@@ -5,6 +5,20 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+
+  /// The SAME database, reached without the connection pooler.
+  ///
+  /// Serverless Postgres (Neon, Supabase) puts PgBouncer in front of the
+  /// database and hands out a "-pooler" URL. Application queries should go
+  /// through it. Migrations must NOT: `prisma migrate` takes session-level
+  /// advisory locks and issues statements PgBouncer's transaction mode cannot
+  /// carry, so a migration through the pooled URL fails or, worse, half
+  /// applies.
+  ///
+  /// Locally there is no pooler, so this is simply the same value as
+  /// DATABASE_URL. Keep both set; Prisma errors if a referenced variable is
+  /// missing rather than falling back.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ──────────────────────────────────────────────

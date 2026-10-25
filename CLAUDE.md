@@ -114,6 +114,7 @@ wants to link the two is the thing this paragraph exists to refuse.
 | What makes this different | `docs/product-spec/18-DIFFERENTIATION.md` |
 | Known UX debt | `docs/UX-FINDINGS-2026-09-06.md` |
 | Deploying | `docs/DEPLOYMENT.md` |
+| Getting production back up | `docs/MIGRATE-TO-NEON.md` |
 
 Older files under `docs/product-spec/` are **specifications written before
 implementation**. Where a spec and the code disagree, the code and its commit

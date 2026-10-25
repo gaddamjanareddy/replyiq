@@ -23,21 +23,26 @@ You end up with `https://replyiq-web.onrender.com` for the dashboard and
 
 ## Before you start — read this bit
 
-The free plan has two consequences that will surprise you otherwise:
+The free plan has one consequence that will surprise you:
 
-1. **The API sleeps after ~15 minutes idle**, and the next request cold-starts
-   it in roughly 50 seconds. The dashboard will look broken for that first
-   request. Fine for evaluation, not for anyone you're trying to impress.
-2. **The free database is deleted 30 days after creation.** There is then a
-   14-day grace period in which upgrading to a paid plan keeps your data. Free
-   databases also have **no backups at all**.
+**The API sleeps after ~15 minutes idle**, and the next request cold-starts it
+in roughly 50 seconds. The dashboard will look broken for that first request.
+Fine for evaluation, not for anyone you're trying to impress — and a hard
+blocker for anything real-time, since a phone call cannot wait 50 seconds.
 
-So: run `./scripts/backup-db.sh` before you care about anything in there, and
-upgrade the database (~$7/month) the moment a real business signs up. Upgrading
-is a plan change in the dashboard — no code change, no redeploy, no data loss,
-as long as you're inside the window.
-
-**Put a reminder in your calendar for 30 days after you create the database.**
+> ### The database is no longer on Render
+>
+> It used to be, on the free plan, and **that plan deletes the database 30 days
+> after creation with no backups**. It did exactly that on 2026-10-10 and took
+> production down for two weeks: the API's start command runs
+> `prisma migrate deploy` *before* the server, so a database it cannot reach
+> means the service never boots at all.
+>
+> The database now lives on **Neon's free plan** — permanent rather than a
+> trial, no card, and it does not delete data when a limit is reached. Setting
+> it up takes about five minutes: **see `MIGRATE-TO-NEON.md`**.
+>
+> Back it up anyway. `./scripts/backup-db.sh` takes a connection URL.
 
 ---
 

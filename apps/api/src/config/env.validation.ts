@@ -4,6 +4,9 @@ const envSchema = z.object({
   PORT: z.string().default('3000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string(),
+  /** Unpooled URL used only by `prisma migrate`. Equals DATABASE_URL when
+   *  there is no pooler in front, which is every local setup. */
+  DIRECT_DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string(),
   JWT_REFRESH_SECRET: z.string(),
   ACCESS_TOKEN_TTL: z.string().default('15m'),
