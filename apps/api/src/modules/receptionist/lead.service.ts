@@ -5,7 +5,7 @@ import { PrismaClient } from '@replyiq/database';
 import { ConfigService } from '@nestjs/config';
 import { ErrorCode, codedBadRequest, codedNotFound } from '../../common/errors/error-codes.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
-import { EmailService } from '../../infrastructure/email/email.service.js';
+import { EmailService, canDeliverEmail } from '../../infrastructure/email/email.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { ReceptionistService } from './receptionist.service.js';
 import {
@@ -52,6 +52,8 @@ export interface LeadView {
   message: string | null;
   isTest: boolean;
   status: LeadStatusValue;
+  /** Whether the owner's "new enquiry" email actually went out. */
+  notifyStatus: 'PENDING' | 'SENT' | 'FAILED' | 'NOT_CONFIGURED';
   createdAt: Date;
 }
 
@@ -126,7 +128,7 @@ export class LeadService {
     // visitor must never wait on an SMTP handshake, and a mail failure must
     // never turn a captured lead into an error the visitor sees and does not
     // retry.
-    void this.notifyOwner(businessId, businessName, {
+    void this.notifyOwner(businessId, businessName, lead.id, {
       name: cleanOptionalText(input.name, MAX_NAME_LENGTH),
       contact: contact.value,
       question: cleanOptionalText(input.question, MAX_QUESTION_LENGTH),
@@ -160,6 +162,7 @@ export class LeadService {
           message: true,
           isTest: true,
           status: true,
+          notifyStatus: true,
           createdAt: true,
         },
       }),
@@ -243,13 +246,21 @@ export class LeadService {
    * somebody else by tomorrow. The email carries the question too, so the
    * owner can call back knowing what it is about.
    *
-   * Every failure is swallowed. The lead is already saved, the visitor has
-   * already been thanked, and there is nothing useful to do with the error
-   * except record it where an operator can see it.
+   * Every failure is swallowed — the lead is already saved and the visitor
+   * has already been thanked, so a dead mail server must not become an error
+   * they see and do not retry.
+   *
+   * But swallowing it silently was its own bug. On a shared sending address
+   * the provider delivers only to the account owner, so for a real customer
+   * this 403s, the lead sits unread, and the visitor was told something
+   * untrue. The outcome is now written to the row, which keeps the failure
+   * non-blocking AND visible. Recording it must never throw either, or the
+   * error handler becomes the error.
    */
   private async notifyOwner(
     businessId: string,
     businessName: string,
+    leadId: string,
     lead: {
       name: string | null;
       contact: string;
@@ -258,6 +269,20 @@ export class LeadService {
       isTest: boolean;
     },
   ): Promise<void> {
+    /**
+     * Checked before anything is attempted, because "this deployment cannot
+     * send email at all" is a different problem for the owner than "this one
+     * message failed", and collapsing them would send them looking in the
+     * wrong place.
+     */
+    if (!canDeliverEmail()) {
+      this.logger.warn(
+        `Lead ${leadId} captured but this deployment has no email transport configured.`,
+      );
+      await this.markNotified(leadId, 'NOT_CONFIGURED');
+      return;
+    }
+
     try {
       const recipients = await this.prisma.user.findMany({
         where: {
@@ -276,6 +301,7 @@ export class LeadService {
 
       if (recipients.length === 0) {
         this.logger.warn(`Lead captured for business ${businessId} with nobody to notify.`);
+        await this.markNotified(leadId, 'FAILED');
         return;
       }
 
@@ -320,9 +346,40 @@ export class LeadService {
       const text = lines.filter((line) => line !== undefined).join('\n');
 
       await Promise.all(recipients.map((r) => this.email.send({ to: r.email, subject, text })));
+      await this.markNotified(leadId, 'SENT');
     } catch (error) {
       this.logger.warn(
         `Could not notify the owner of a new lead: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      await this.markNotified(leadId, 'FAILED');
+    }
+  }
+
+  /**
+   * Record the delivery outcome on the lead.
+   *
+   * Swallows its own errors on purpose: this runs inside the handler for a
+   * notification that already failed, and an exception here would be an error
+   * handler that throws — the lead is saved either way, which is what
+   * actually matters.
+   */
+  private async markNotified(
+    leadId: string,
+    notifyStatus: 'SENT' | 'FAILED' | 'NOT_CONFIGURED',
+  ): Promise<void> {
+    try {
+      await this.prisma.receptionistLead.update({
+        where: { id: leadId },
+        data: {
+          notifyStatus,
+          notifiedAt: notifyStatus === 'SENT' ? new Date() : null,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not record the notification outcome for lead ${leadId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );

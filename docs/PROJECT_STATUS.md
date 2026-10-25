@@ -43,7 +43,7 @@ session). **Dark theme**, field-level validation errors, and a bento dashboard
 are in. Contrast was measured, not eyeballed: every text/background pair clears
 WCAG AA in both themes.
 
-620 tests: 347 API unit, 198 web, 78 integration against a real database.
+622 tests: 347 API unit, 198 web, 80 integration against a real database.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
 

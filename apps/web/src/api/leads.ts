@@ -17,6 +17,8 @@ export interface Lead {
   /** Captured while the business was in Test Mode. Labelled everywhere. */
   isTest: boolean;
   status: LeadStatus;
+  /** Whether the "new enquiry" email actually reached the owner. */
+  notifyStatus: 'PENDING' | 'SENT' | 'FAILED' | 'NOT_CONFIGURED';
   createdAt: string;
 }
 

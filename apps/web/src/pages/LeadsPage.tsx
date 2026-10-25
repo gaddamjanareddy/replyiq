@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
-import { ErrorBanner } from '../components/ui/Banner';
+import { Banner, ErrorBanner } from '../components/ui/Banner';
 import { PageHeader } from '../components/layout/PageHeader';
 import { PageSkeleton } from '../components/ui/Skeleton';
 import { getErrorCopy } from '../api/client';
@@ -57,6 +57,14 @@ export function LeadsPage() {
   const leads = data?.leads ?? [];
   const counts = data?.counts ?? { new: 0, contacted: 0, archived: 0, waiting: 0 };
   const shown = leads.filter((lead) => lead.status === tab);
+  // Test leads are excluded: the owner is not owed an email about their own
+  // trial run, and warning about one would be noise on their first visit.
+  const undelivered = leads.filter(
+    (lead) => !lead.isTest && (lead.notifyStatus === 'FAILED' || lead.notifyStatus === 'NOT_CONFIGURED'),
+  ).length;
+  const notConfigured = leads.some(
+    (lead) => !lead.isTest && lead.notifyStatus === 'NOT_CONFIGURED',
+  );
   const countFor = (status: LeadStatus) =>
     status === 'NEW' ? counts.new : status === 'CONTACTED' ? counts.contacted : counts.archived;
 
@@ -88,6 +96,28 @@ export function LeadsPage() {
       />
 
       {error && <ErrorBanner copy={error} />}
+
+      {/*
+        The product told the visitor "they'll come back to you" and told the
+        owner nothing. Email failure is swallowed on purpose — a dead mail
+        server must not turn a captured lead into an error a visitor sees —
+        but swallowing it silently meant an owner could lose every enquiry and
+        never know. One banner, once, naming the fix.
+      */}
+      {undelivered > 0 && (
+        <Banner
+          tone="warning"
+          title={
+            notConfigured
+              ? 'This workspace cannot send email yet'
+              : `We could not email you about ${pluralize(undelivered, 'enquiry', 'enquiries')}`
+          }
+        >
+          {notConfigured
+            ? 'Your enquiries are all saved and listed below — but nobody was emailed about them. Set up an email sender so you hear about the next one straight away.'
+            : 'They are saved and listed below, so nothing is lost. Check your email settings, or just work from this page.'}
+        </Banner>
+      )}
 
       {leads.length === 0 ? (
         <Card>
@@ -192,6 +222,9 @@ function LeadRow({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {lead.isTest && <Badge variant="test">Test</Badge>}
+              {!lead.isTest && lead.notifyStatus !== 'SENT' && lead.notifyStatus !== 'PENDING' && (
+                <Badge variant="warning">Not emailed</Badge>
+              )}
               <span className="text-xs text-ink-500">{relativeTime(lead.createdAt)}</span>
             </div>
           </div>

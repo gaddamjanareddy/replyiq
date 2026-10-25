@@ -435,6 +435,23 @@ enum LeadStatus {
   ARCHIVED
 }
 
+/// Whether the owner was actually told about a lead.
+///
+/// Tracked because the failure is otherwise invisible and the product has
+/// already promised something: "leave your number and they'll come back to
+/// you". If the email never sends, the visitor was told a lie, the lead sits
+/// unread, and nobody finds out. PENDING is the honest initial state - the
+/// row is written before the notification is attempted.
+enum LeadNotifyStatus {
+  PENDING
+  SENT
+  FAILED
+  /// This deployment has no email transport configured at all. A property of
+  /// the deployment, not of this lead - and a different thing for the owner
+  /// to fix, which is why it is not just FAILED.
+  NOT_CONFIGURED
+}
+
 /// How the visitor chose to be reached. Stored so the owner's list can offer a
 /// one-tap `tel:` or `mailto:` link, which is most of the value of the list on
 /// a phone.
@@ -478,6 +495,11 @@ model ReceptionistLead {
   /// counted as real would corrupt the only number that matters.
   isTest     Boolean         @default(false)
   status     LeadStatus      @default(NEW)
+
+  /// Whether the owner's "you have a new enquiry" email actually went out.
+  notifyStatus LeadNotifyStatus @default(PENDING)
+  notifiedAt   DateTime?
+
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 

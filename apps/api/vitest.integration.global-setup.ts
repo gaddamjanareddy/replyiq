@@ -12,9 +12,20 @@ const TEST_DB_URL =
 export default async function setup(): Promise<void> {
   const databasePkgDir = path.resolve(process.cwd(), '..', '..', 'packages', 'database');
 
+  /**
+   * BOTH variables, always.
+   *
+   * The schema declares `directUrl` for pooled hosts, and `prisma migrate`
+   * prefers it over `url`. Overriding only DATABASE_URL therefore pointed the
+   * migration at whatever DIRECT_DATABASE_URL held — the developer's own
+   * database — while the tests kept reading `replyiq_test`, which never got
+   * the new column. The failure looked like a broken migration and was a
+   * broken override. Anything that runs migrations against a specific
+   * database has to set both.
+   */
   execSync('npx prisma migrate deploy', {
     cwd: databasePkgDir,
-    env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+    env: { ...process.env, DATABASE_URL: TEST_DB_URL, DIRECT_DATABASE_URL: TEST_DB_URL },
     stdio: 'inherit',
   });
 
@@ -29,7 +40,7 @@ export default async function setup(): Promise<void> {
 
   execSync(`npx prisma db execute --stdin --url "${TEST_DB_URL}"`, {
     cwd: databasePkgDir,
-    env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+    env: { ...process.env, DATABASE_URL: TEST_DB_URL, DIRECT_DATABASE_URL: TEST_DB_URL },
     input: purgeSql,
     stdio: ['pipe', 'inherit', 'inherit'],
   });

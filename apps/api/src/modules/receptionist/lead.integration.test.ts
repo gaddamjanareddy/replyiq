@@ -373,6 +373,42 @@ describe('telling the owner', () => {
     expect(first(email.sent).subject).toContain('[Test]');
   });
 
+  it('records that the email actually went out', async () => {
+    await leads.capture(businessId, LIVE_ORIGIN, undefined, { contact: '9876543210' });
+    await email.waitForSend();
+    // The write happens after the send resolves.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const { leads: stored } = await leads.list(businessId);
+    expect(first(stored).notifyStatus).toBe('SENT');
+  });
+
+  /**
+   * The failure this column exists for. The visitor was told "they'll come
+   * back to you"; if the email never sends and nothing records that, the
+   * owner loses the enquiry and never learns why.
+   */
+  it('records a failure instead of hiding it', async () => {
+    const failing = new (class extends CapturingEmailService {
+      override send(): Promise<void> {
+        return Promise.reject(new Error('SMTP is down'));
+      }
+    })(new ConfigService());
+
+    const service = new LeadService(
+      prisma as PrismaClient,
+      new ReceptionistService(prisma as PrismaClient),
+      failing,
+      new ConfigService(),
+    );
+
+    await service.capture(businessId, LIVE_ORIGIN, undefined, { contact: '9876543210' });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    const { leads: stored } = await leads.list(businessId);
+    expect(first(stored).notifyStatus).toBe('FAILED');
+  });
+
   /**
    * The lead is already saved and the visitor has already been thanked. A
    * failing mail server must not turn that into an error the visitor sees and
