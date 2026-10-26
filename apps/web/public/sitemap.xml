@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Only the pages a stranger should land on.
+
+  Sign-in and password-reset routes are deliberately absent: they are listed
+  as Disallow in robots.txt, and a sitemap that contradicts robots.txt is a
+  sitemap nobody trusts. `lastmod` is left off rather than guessed — a date
+  that does not track real changes teaches a crawler to ignore the field.
+
+  The host must match the domain this file is served from. See robots.txt.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://replyiq-web.onrender.com/</loc>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://replyiq-web.onrender.com/faq</loc>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://replyiq-web.onrender.com/register</loc>
+    <priority>0.5</priority>
+  </url>
+</urlset>

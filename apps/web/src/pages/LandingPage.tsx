@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '../stores/auth.store';
-import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { PublicShell } from '../components/layout/PublicShell';
 
 /**
  * The public front page.
@@ -27,8 +26,6 @@ import { ThemeToggle } from '../components/ui/ThemeToggle';
 const DEMO_BUSINESS_ID = import.meta.env.VITE_DEMO_BUSINESS_ID as string | undefined;
 
 export function LandingPage() {
-  const isAuthenticated = useAuthStore((s) => Boolean(s.accessToken));
-
   /**
    * The widget is loaded by injecting its own script tag, exactly as a
    * customer would — rather than importing the module. If the real install
@@ -53,41 +50,7 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-ink-50">
-      <header className="mx-auto flex max-w-5xl items-center gap-3 px-5 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-fill to-brand-fill-deep shadow-raised">
-          <span className="text-sm font-bold text-white">RQ</span>
-        </div>
-        <span className="text-title text-lg font-semibold text-ink-900">ReplyIQ</span>
-        <div className="ml-auto flex items-center gap-3">
-          <ThemeToggle />
-          {isAuthenticated ? (
-            <Link
-              to="/dashboard"
-              className="interactive rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Dashboard
-            </Link>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="text-sm font-medium text-ink-700 hover:text-ink-900"
-              >
-                Sign in
-              </Link>
-              <Link
-                to="/register"
-                className="interactive rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Get started
-              </Link>
-            </>
-          )}
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-5 pb-24">
+    <PublicShell>
         <section className="animate-rise py-14 sm:py-20">
           <p className="text-overline text-xs font-semibold text-brand-700">
             AI receptionist for small businesses
@@ -201,13 +164,6 @@ export function LandingPage() {
             Set it up free
           </Link>
         </section>
-      </main>
-
-      <footer className="border-t border-ink-200 py-8">
-        <p className="mx-auto max-w-5xl px-5 text-sm text-ink-500">
-          © {new Date().getFullYear()} ReplyIQ
-        </p>
-      </footer>
-    </div>
+    </PublicShell>
   );
 }

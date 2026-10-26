@@ -12,6 +12,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { WidgetPage } from './pages/WidgetPage';
 import { ConversationsPage } from './pages/ConversationsPage';
+import { FaqPage } from './pages/FaqPage';
 import { LeadsPage } from './pages/LeadsPage';
 import { LandingPage } from './pages/LandingPage';
 
@@ -40,6 +41,7 @@ export function App() {
           dashboard, which meant the product had no front door at all - anyone
           sent a link landed on a sign-in form with nothing to look at. */}
       <Route path="/" element={<LandingPage />} />
+      <Route path="/faq" element={<FaqPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

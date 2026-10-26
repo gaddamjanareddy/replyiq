@@ -1,0 +1,21 @@
+# ReplyIQ
+#
+# The signed-out pages are the whole point of being crawled: somebody looking
+# for "AI receptionist for small business" should be able to find this. The
+# dashboard is behind a session, so a crawler following those paths gets a
+# login screen — which wastes its budget and, worse, can surface a sign-in
+# wall in search results as if it were the product.
+#
+# The host below is the deploy's own domain. If ReplyIQ moves to a custom
+# domain, this file and sitemap.xml both have to follow it; a sitemap naming
+# a different host than the one it was fetched from is ignored.
+
+User-agent: *
+Allow: /
+
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /reset-password
+Disallow: /forgot-password
+
+Sitemap: https://replyiq-web.onrender.com/sitemap.xml

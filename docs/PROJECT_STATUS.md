@@ -55,9 +55,18 @@ whenever a single flipped question could explain it. See `trend.ts`.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
 
+A public FAQ at `/faq`, plus `robots.txt` and `sitemap.xml`. Both name the
+deploy's own host and have to be updated by hand if ReplyIQ moves to a custom
+domain — a sitemap naming a different host than the one it was fetched from
+is ignored.
+
 ## What does not exist yet
 
 - **Billing.** Nothing. Decided but unbuilt — see below.
+- **A pricing page.** Deliberately absent while the numbers below are still
+  indicative: a product whose pitch is that it will not tell your customers
+  something untrue cannot publish a price nobody has committed to. The FAQ
+  says it is free during early access, which is true.
 - **An LLM.** The answer engine is retrieval-only behind an `AnswerEngine`
   interface. This is a deliberate choice, not a gap: it costs nothing per
   conversation and cannot hallucinate. A model would improve phrasing, not
