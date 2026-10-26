@@ -217,6 +217,46 @@ export class LeadService {
   }
 
   /**
+   * Enquiries nobody was emailed about.
+   *
+   * ── Why this has to reach the dashboard ──────────────────────────────────
+   * The Enquiries page already says so, and that is the one page an owner
+   * whose email is broken will never think to open: the thing that would
+   * normally send them there is the email that did not arrive. A warning
+   * visible only to someone who already knows is not a warning.
+   *
+   * Test leads are excluded. Nobody is owed an email about their own trial
+   * run, and warning about one would make a brand-new owner's first visit a
+   * false alarm — which is how real alarms stop being read.
+   *
+   * Returns a count and a reason, never the enquiries themselves: the
+   * dashboard holds no contact details. See `ReceptionistService.summary`.
+   */
+  async undeliveredCount(
+    businessId: string,
+  ): Promise<{ total: number; anyNotConfigured: boolean }> {
+    const grouped = await this.prisma.receptionistLead.groupBy({
+      by: ['notifyStatus'],
+      where: {
+        businessId,
+        isTest: false,
+        notifyStatus: { in: ['FAILED', 'NOT_CONFIGURED'] },
+      },
+      _count: { _all: true },
+    });
+
+    return {
+      total: grouped.reduce((n, g) => n + g._count._all, 0),
+      /**
+       * "This deployment cannot send email at all" and "this one message
+       * failed" send the owner to different places, so they are kept apart
+       * all the way to the copy rather than collapsed into one number.
+       */
+      anyNotConfigured: grouped.some((g) => g.notifyStatus === 'NOT_CONFIGURED'),
+    };
+  }
+
+  /**
    * Mark a lead as dealt with.
    *
    * Scoped by businessId in the WHERE clause as well as by the route guard.

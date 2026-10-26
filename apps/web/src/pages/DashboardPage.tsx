@@ -8,6 +8,8 @@ import { Button } from '../components/ui/Button';
 import { ProgressBar } from '../components/ui/Stepper';
 import { PageSkeleton } from '../components/ui/Skeleton';
 import { ServiceModeBanner } from '../components/domains/ServiceModeBanner';
+import { Banner } from '../components/ui/Banner';
+import { pluralize } from '../lib/plural';
 import { describeTrend, describeVolume, type TrendTone } from '../lib/trend-copy';
 
 export function DashboardPage() {
@@ -65,6 +67,41 @@ export function DashboardPage() {
       {setupComplete && (
         <div className="mb-4 animate-rise">
           <ServiceModeBanner mode={business.serviceMode} context="dashboard" />
+        </div>
+      )}
+
+      {/*
+        Above the greeting too, and above the numbers.
+
+        Somebody left their phone number, the widget promised them a call, and
+        the owner was never told. The Enquiries page says so — and that is the
+        one page an owner whose email is broken will not open, because the
+        thing that would normally send them there is the email that did not
+        arrive. This is the only failure in the product that silently costs
+        the owner a customer, so it is the only one worth interrupting the
+        dashboard for.
+      */}
+      {summary && summary.undelivered.total > 0 && (
+        <div className="mb-4 animate-rise">
+          <Banner
+            tone="warning"
+            title={
+              summary.undelivered.anyNotConfigured
+                ? 'This workspace cannot send email yet'
+                : `We could not email you about ${pluralize(summary.undelivered.total, 'enquiry', 'enquiries')}`
+            }
+            action={
+              <Link to="/dashboard/leads">
+                <Button size="sm" variant="secondary">
+                  See who is waiting
+                </Button>
+              </Link>
+            }
+          >
+            {summary.undelivered.anyNotConfigured
+              ? 'Every enquiry is saved, but nobody was emailed about them. Until an email sender is set up, this page is the only place you will hear about someone waiting.'
+              : 'They are all saved, so nothing is lost — but you were not told at the time, and these people are expecting to hear back.'}
+          </Banner>
         </div>
       )}
 

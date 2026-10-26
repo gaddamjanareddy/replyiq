@@ -51,6 +51,11 @@ export interface ReceptionistSummary {
   leadsWaiting: number;
   reviewed: number;
   markedWrong: number;
+  /**
+   * Enquiries nobody was emailed about. A count and a reason, never the
+   * enquiries — this page holds no contact details.
+   */
+  undelivered: { total: number; anyNotConfigured: boolean };
   /** This window against the one before it. See `../lib/trend-copy.ts`. */
   trend: Trend;
 }

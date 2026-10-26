@@ -51,7 +51,7 @@ The dashboard answers "is this getting better?": each window of questions is
 compared against the one immediately before it, and the comparison is withheld
 whenever a single flipped question could explain it. See `trend.ts`.
 
-670 tests: 358 API unit, 211 web, 101 integration against a real database.
+676 tests: 358 API unit, 211 web, 107 integration against a real database.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
 

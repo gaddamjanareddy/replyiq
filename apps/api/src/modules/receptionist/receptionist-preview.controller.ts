@@ -122,14 +122,15 @@ export class ReceptionistPreviewController {
    */
   @Get('summary')
   async summary(@Param('businessId') businessId: string) {
-    const [receptionist, leadsWaiting] = await Promise.all([
+    const [receptionist, leadsWaiting, undelivered] = await Promise.all([
       this.receptionist.summary(businessId),
       this.leads.newCount(businessId),
+      this.leads.undeliveredCount(businessId),
     ]);
     return {
       success: true,
       message: 'Receptionist summary',
-      data: { ...receptionist, leadsWaiting },
+      data: { ...receptionist, leadsWaiting, undelivered },
     };
   }
 

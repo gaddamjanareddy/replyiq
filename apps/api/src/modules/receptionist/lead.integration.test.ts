@@ -522,3 +522,81 @@ describe('telling the owner', () => {
     expect(stored).toHaveLength(1);
   });
 });
+
+/**
+ * The count that reaches the dashboard.
+ *
+ * The Enquiries page already warns about undelivered notifications, and it is
+ * the one page an owner whose email is broken will never open — the thing
+ * that would normally send them there is the email that did not arrive. So
+ * the number has to travel to the page they land on, and these rows are
+ * written directly because the states being counted are precisely the ones a
+ * working test harness never produces.
+ */
+describe('counting enquiries nobody was emailed about', () => {
+  const seed = (notifyStatus: 'SENT' | 'FAILED' | 'NOT_CONFIGURED' | 'PENDING', isTest = false) =>
+    prisma.receptionistLead.create({
+      data: {
+        businessId: otherBusinessId,
+        contact: '9876500000',
+        contactKind: 'PHONE',
+        isTest,
+        notifyStatus,
+      },
+    });
+
+  afterEach(async () => {
+    await prisma.receptionistLead.deleteMany({ where: { businessId: otherBusinessId } });
+  });
+
+  it('counts both kinds of failure together', async () => {
+    await seed('FAILED');
+    await seed('NOT_CONFIGURED');
+    await seed('SENT');
+
+    const undelivered = await leads.undeliveredCount(otherBusinessId);
+    expect(undelivered.total).toBe(2);
+  });
+
+  it('keeps "cannot send at all" apart from "this one failed"', async () => {
+    // The two send the owner to different places, so they must not collapse
+    // into one number on the way to the copy.
+    await seed('FAILED');
+    expect((await leads.undeliveredCount(otherBusinessId)).anyNotConfigured).toBe(false);
+
+    await seed('NOT_CONFIGURED');
+    expect((await leads.undeliveredCount(otherBusinessId)).anyNotConfigured).toBe(true);
+  });
+
+  it('does not warn about the owner’s own test run', async () => {
+    // A brand-new owner trying the widget would otherwise land on a false
+    // alarm, which is how real alarms stop being read.
+    await seed('FAILED', true);
+    await seed('NOT_CONFIGURED', true);
+
+    const undelivered = await leads.undeliveredCount(otherBusinessId);
+    expect(undelivered.total).toBe(0);
+    expect(undelivered.anyNotConfigured).toBe(false);
+  });
+
+  it('says nothing when every enquiry was delivered', async () => {
+    await seed('SENT');
+    await seed('SENT');
+    expect(await leads.undeliveredCount(otherBusinessId)).toEqual({
+      total: 0,
+      anyNotConfigured: false,
+    });
+  });
+
+  it('does not count an enquiry still being sent', async () => {
+    // PENDING is "in flight", not "failed". Counting it would fire the
+    // warning for a second on every single capture.
+    await seed('PENDING');
+    expect((await leads.undeliveredCount(otherBusinessId)).total).toBe(0);
+  });
+
+  it('does not reach into another business', async () => {
+    await seed('FAILED');
+    expect((await leads.undeliveredCount(businessId)).total).toBe(0);
+  });
+});
