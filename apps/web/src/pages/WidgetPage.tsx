@@ -248,42 +248,23 @@ export function WidgetPage() {
                   Questions it could not answer
                 </h3>
                 <p className="mt-1 text-sm text-ink-600">
-                  Each of these is one answer away from being handled.
+                  {insights.gaps.length === 1
+                    ? 'One question is one answer away from being handled.'
+                    : `${insights.gaps.length} questions are one answer away from being handled.`}
                 </p>
-                <ul className="stagger mt-3 space-y-2">
-                  {insights.gaps.map((gap) => (
-                    <li
-                      key={gap.question}
-                      className="animate-rise flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
-                    >
-                      {/* Visitor-authored text. React escapes it; it is never
-                          interpolated into markup anywhere. */}
-                      <span className="text-sm text-amber-800">{gap.question}</span>
-                      <span className="ml-auto flex shrink-0 items-center gap-3">
-                        {gap.timesAsked > 1 && (
-                          <span className="text-xs font-medium text-amber-700">
-                            asked {gap.timesAsked}×
-                          </span>
-                        )}
-                        {/* The whole point of the gap report: one click and
-                            this question is answered forever. A link to the
-                            knowledge page and "retype it" is where the loop
-                            quietly stops being used. */}
-                        <Link
-                          to={`/dashboard/knowledge?answer=${encodeURIComponent(gap.question)}`}
-                          className="interactive rounded-md bg-warn-fill px-2.5 py-1 text-xs font-semibold text-white hover:opacity-90"
-                        >
-                          Answer this
-                        </Link>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                {/* The list itself, and the writing, live on the Knowledge
+                    page now. Answering a gap means typing an answer and
+                    saving it, and doing that from here meant a page change
+                    with a dialog on arrival and a lost place in the list —
+                    four steps per gap, which is why the list got read and
+                    not worked through. This stays as the count, because
+                    "five things are unanswered" is still worth knowing while
+                    you are looking at whether the widget is installed. */}
                 <Link
                   to="/dashboard/knowledge"
                   className="mt-3 inline-block text-sm font-medium text-brand-700 underline"
                 >
-                  See everything it knows
+                  Answer them on the Knowledge page
                 </Link>
               </div>
             ) : (

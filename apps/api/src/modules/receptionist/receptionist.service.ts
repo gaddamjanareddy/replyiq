@@ -16,6 +16,7 @@ import {
 import { checkWidgetOrigin, type AllowedDomain } from './widget-origin.js';
 import { MAX_SUGGESTIONS, pickStarterQuestions } from './starter-questions.js';
 import { computeTrend, type Trend, type TrendWindow } from './trend.js';
+import { clusterGaps, type GapCluster } from './gap-clustering.js';
 
 /**
  * The public receptionist: the only part of the product a visitor ever meets.
@@ -314,6 +315,92 @@ export class ReceptionistService {
     }
 
     return { id: questionId, verdict };
+  }
+
+  /**
+   * The unanswered questions, as a list of things to write.
+   *
+   * Separate from `insights.gaps`, which returns them grouped by exact string
+   * — right for a glance at what is happening, wrong for a to-do list, where
+   * "do you take cards" and "do you take card" are one job and reading as two
+   * is what makes the list feel endless. The grouping rule and the reason it
+   * errs towards splitting are in `gap-clustering.ts`.
+   *
+   * Resolved gaps are excluded. A question somebody wrote an answer for is
+   * still a question that went unanswered at the time — that history is
+   * untouched — but it is no longer work.
+   */
+  async gaps(
+    businessId: string,
+    days = 30,
+  ): Promise<{ clusters: GapCluster[]; totalAsked: number }> {
+    const since = new Date(Date.now() - days * 86_400_000);
+
+    const rows = await this.prisma.receptionistQuestion.groupBy({
+      by: ['question'],
+      where: {
+        businessId,
+        confidence: 'unknown',
+        resolvedAt: null,
+        createdAt: { gte: since },
+      },
+      _count: { _all: true },
+      _max: { createdAt: true },
+      orderBy: { _count: { question: 'desc' } },
+      // Clustering happens in code over whatever comes back, so this bound is
+      // on the DISTINCT phrasings, not the people who asked. A hundred
+      // distinct ways of asking is already past the point where a list helps.
+      take: 100,
+    });
+
+    const clusters = clusterGaps(
+      rows.map((r) => ({
+        question: r.question,
+        timesAsked: r._count._all,
+        askedAt: r._max.createdAt ?? since,
+      })),
+    );
+
+    return {
+      clusters,
+      // Everyone who asked something it could not answer, so the UI can say
+      // "6 things to write, 27 people asked" rather than only the smaller of
+      // the two — the clustering must not be able to make the problem look
+      // smaller than it is.
+      totalAsked: clusters.reduce((n, c) => n + c.timesAsked, 0),
+    };
+  }
+
+  /**
+   * Mark a gap dealt with, now that the owner has written the answer.
+   *
+   * Takes the exact phrasings rather than a cluster id, because a cluster has
+   * no identity — it is computed per request and would change the moment
+   * another visitor phrased something a new way. The phrasings ARE the
+   * identity, and they came from this same response a moment earlier.
+   *
+   * Scoped to `confidence: 'unknown'` as well as to the business: an exact
+   * string can easily also have been asked and answered successfully by
+   * someone else, and that row is not a gap and must not be touched.
+   */
+  async resolveGap(
+    businessId: string,
+    phrasings: string[],
+    itemId: string | null,
+  ): Promise<{ resolved: number }> {
+    if (phrasings.length === 0) return { resolved: 0 };
+
+    const updated = await this.prisma.receptionistQuestion.updateMany({
+      where: {
+        businessId,
+        confidence: 'unknown',
+        resolvedAt: null,
+        question: { in: phrasings },
+      },
+      data: { resolvedAt: new Date(), resolvedItemId: itemId },
+    });
+
+    return { resolved: updated.count };
   }
 
   /**

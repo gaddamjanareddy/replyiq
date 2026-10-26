@@ -51,9 +51,14 @@ The dashboard answers "is this getting better?": each window of questions is
 compared against the one immediately before it, and the comparison is withheld
 whenever a single flipped question could explain it. See `trend.ts`.
 
-676 tests: 358 API unit, 211 web, 107 integration against a real database.
+701 tests: 372 API unit, 211 web, 118 integration against a real database.
 The gate (`npx turbo typecheck lint build test`) is green at 29/29, and the
 integration suite has been run.
+
+Unanswered questions are grouped into things to write and answered in
+place, at the top of the Knowledge page. The grouping errs towards splitting:
+a missed cluster costs an extra row, a wrong merge makes one answer serve two
+different questions. See `gap-clustering.ts`.
 
 A public FAQ at `/faq`, plus `robots.txt` and `sitemap.xml`. Both name the
 deploy's own host and have to be updated by hand if ReplyIQ moves to a custom

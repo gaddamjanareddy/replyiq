@@ -415,13 +415,29 @@ model ReceptionistQuestion {
   /// actually reviewed, and treating unreviewed as good would make it say
   /// whatever we wanted.
   verdict   AnswerVerdict?
+
+  /// When the owner wrote an answer for this gap from the to-do list, and
+  /// which answer they wrote.
+  ///
+  /// Deliberately NOT `itemId`. That column records what answered at the
+  /// time and has to stay true about the past; this one records that somebody
+  /// dealt with it afterwards. Overwriting the first with the second would
+  /// turn an unanswered question into a history of one that was answered.
+  ///
+  /// Nulled rather than cascaded when the item is deleted, same as `itemId`,
+  /// so tidying the knowledge base does not resurrect a pile of old gaps.
+  resolvedAt     DateTime?
+  resolvedItemId String?   @db.Uuid
+
   createdAt DateTime      @default(now())
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([businessId, createdAt])
   /// Serves the gap report directly: the unanswered questions, newest first.
-  @@index([businessId, confidence, createdAt])
+  /// `resolvedAt` is in the key because the to-do list asks for the ones
+  /// nobody has dealt with, which on a busy business is the smaller half.
+  @@index([businessId, confidence, resolvedAt, createdAt])
   /// "Show me the ones I marked wrong", without scanning the history.
   @@index([businessId, verdict])
   @@map("receptionist_questions")

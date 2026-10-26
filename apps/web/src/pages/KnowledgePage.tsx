@@ -24,6 +24,7 @@ import { getErrorCopy } from '../api/client';
 import type { ErrorCopy } from '../api/error-copy';
 import { pluralize } from '../lib/plural';
 import { PageHeader } from '../components/layout/PageHeader';
+import { GapList } from '../components/knowledge/GapList';
 
 export function KnowledgePage() {
   const user = useAuthStore((s) => s.user);
@@ -106,6 +107,13 @@ export function KnowledgePage() {
       />
 
       {error && <ErrorBanner copy={error} />}
+
+      {/* Above the answers, not below them. A list of questions real
+          customers asked is a better thing to write next than anything the
+          owner would think of unprompted — which is the whole claim this part
+          of the product makes. It renders nothing when there is nothing to
+          do. */}
+      <GapList businessId={businessId} />
 
       {summary?.isIngesting && (
         <Banner tone="info" title="Reading your website…" live>

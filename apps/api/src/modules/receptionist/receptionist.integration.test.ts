@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@replyiq/database';
 import type { PrismaClient } from '@replyiq/database';
@@ -685,5 +685,168 @@ describe('conversation transcripts', () => {
   it('does not reach into another business’s visits', async () => {
     const { conversations } = await service.conversations(businessId);
     expect(JSON.stringify(conversations)).not.toContain('do you take crypto');
+  });
+});
+
+/**
+ * The to-do list, and clearing a line off it.
+ *
+ * Clustering is unit-tested; what needs a database is that the right rows are
+ * selected, that resolving touches those rows and only those, and that a
+ * resolved gap actually leaves the list — the half of "one click" that is
+ * easy to leave out and impossible to notice until an owner answers the same
+ * question for the third time.
+ */
+describe('the unanswered-question to-do list', () => {
+  let gapBusinessId: string;
+  let gapOrgId: string;
+
+  const ask = (question: string, confidence = 'unknown', daysAgo = 1) =>
+    prisma.receptionistQuestion.create({
+      data: {
+        businessId: gapBusinessId,
+        question,
+        confidence,
+        sessionKey: `g${randomUUID().replace(/-/g, '')}`.slice(0, 40),
+        createdAt: new Date(Date.now() - daysAgo * 86_400_000),
+      },
+    });
+
+  beforeAll(async () => {
+    const org = await prisma.organization.create({
+      data: { name: `GAP-ORG-${randomUUID().slice(0, 8)}` },
+    });
+    gapOrgId = org.id;
+    const business = await prisma.business.create({
+      data: { organizationId: gapOrgId, name: 'Gap Dental' },
+    });
+    gapBusinessId = business.id;
+  });
+
+  afterEach(async () => {
+    await prisma.receptionistQuestion.deleteMany({ where: { businessId: gapBusinessId } });
+  });
+
+  afterAll(async () => {
+    await prisma.receptionistQuestion.deleteMany({ where: { businessId: gapBusinessId } });
+    await prisma.business.deleteMany({ where: { id: gapBusinessId } });
+    await prisma.organization.deleteMany({ where: { id: gapOrgId } });
+  });
+
+  it('turns repeated phrasings into one thing to write', async () => {
+    await ask('do you take cards');
+    await ask('do you take cards');
+    await ask('do you take card');
+    await ask('where do i park');
+
+    const { clusters } = await service.gaps(gapBusinessId);
+    expect(clusters).toHaveLength(2);
+    expect(clusters[0]?.question).toBe('do you take cards');
+    expect(clusters[0]?.timesAsked).toBe(3);
+  });
+
+  it('reports how many people asked, not just how many jobs there are', async () => {
+    // The clustering must never be able to make the problem look smaller
+    // than it is.
+    await ask('do you take cards');
+    await ask('do you take card');
+    await ask('do you take cards');
+
+    const { clusters, totalAsked } = await service.gaps(gapBusinessId);
+    expect(clusters).toHaveLength(1);
+    expect(totalAsked).toBe(3);
+  });
+
+  it('lists only the questions it could not answer', async () => {
+    await ask('where do i park', 'unknown');
+    await ask('what time do you open', 'answered');
+    await ask('nhs', 'unsure');
+
+    const { clusters } = await service.gaps(gapBusinessId);
+    expect(clusters.map((c) => c.question)).toEqual(['where do i park']);
+  });
+
+  it('drops a gap off the list once it has been answered', async () => {
+    await ask('do you take cards');
+    await ask('do you take card');
+
+    const { clusters } = await service.gaps(gapBusinessId);
+    const phrasings = clusters[0]?.phrasings.map((p) => p.question) ?? [];
+    expect(phrasings).toHaveLength(2);
+
+    const itemId = randomUUID();
+    const { resolved } = await service.resolveGap(gapBusinessId, phrasings, itemId);
+    expect(resolved).toBe(2);
+
+    expect((await service.gaps(gapBusinessId)).clusters).toEqual([]);
+  });
+
+  it('clears every phrasing in the cluster, not just the headline', async () => {
+    // Clearing only the headline is the bug that makes one click feel like
+    // it did nothing: the row stays, now showing the second phrasing.
+    await ask('do you take cards');
+    await ask('do you take card');
+
+    await service.resolveGap(gapBusinessId, ['do you take cards', 'do you take card'], null);
+
+    const left = await prisma.receptionistQuestion.count({
+      where: { businessId: gapBusinessId, resolvedAt: null },
+    });
+    expect(left).toBe(0);
+  });
+
+  it('leaves the history of the question untouched', async () => {
+    // It really did go unanswered at the time. Resolving records that
+    // somebody dealt with it afterwards, and must not rewrite the first fact
+    // into the second.
+    await ask('where do i park');
+    const itemId = randomUUID();
+    await service.resolveGap(gapBusinessId, ['where do i park'], itemId);
+
+    const row = await prisma.receptionistQuestion.findFirstOrThrow({
+      where: { businessId: gapBusinessId },
+    });
+    expect(row.confidence).toBe('unknown');
+    expect(row.itemId).toBeNull();
+    expect(row.resolvedItemId).toBe(itemId);
+    expect(row.resolvedAt).not.toBeNull();
+  });
+
+  it('does not touch a question that was answered successfully', async () => {
+    // The same words can easily also have been asked by somebody the
+    // receptionist could answer. That row is not a gap.
+    await ask('what time do you open', 'unknown');
+    await ask('what time do you open', 'answered');
+
+    const { resolved } = await service.resolveGap(gapBusinessId, ['what time do you open'], null);
+    expect(resolved).toBe(1);
+
+    const answered = await prisma.receptionistQuestion.findFirstOrThrow({
+      where: { businessId: gapBusinessId, confidence: 'answered' },
+    });
+    expect(answered.resolvedAt).toBeNull();
+  });
+
+  it('does not resolve another business’s gaps', async () => {
+    await ask('where do i park');
+    const { resolved } = await service.resolveGap(businessId, ['where do i park'], null);
+    expect(resolved).toBe(0);
+
+    expect((await service.gaps(gapBusinessId)).clusters).toHaveLength(1);
+  });
+
+  it('does nothing, safely, when asked to resolve nothing', async () => {
+    await ask('where do i park');
+    expect(await service.resolveGap(gapBusinessId, [], null)).toEqual({ resolved: 0 });
+    expect((await service.gaps(gapBusinessId)).clusters).toHaveLength(1);
+  });
+
+  it('forgets a gap older than the window', async () => {
+    await ask('where do i park', 'unknown', 90);
+    expect((await service.gaps(gapBusinessId)).clusters).toEqual([]);
+  });
+
+  it('returns an empty list for a business nobody has asked anything', async () => {
+    expect(await service.gaps(gapBusinessId)).toEqual({ clusters: [], totalAsked: 0 });
   });
 });

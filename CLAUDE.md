@@ -51,6 +51,14 @@ below the top rung is *always* offered with a hedge, however high it scored.
 Never fold context into the primary query — it lets a stale question hijack a
 clear one, and there are tests that fail if you try.
 
+It binds the *grouping* too. `gap-clustering.ts` merges "do you take cards"
+and "do you take card" into one thing to write, and the threshold is set high
+on purpose: a missed cluster costs the owner one extra row, a wrong merge has
+them write one answer for two different questions and the receptionist then
+returns it confidently to the wrong one. Every original phrasing is shown
+before the answer is written, never summarised away, and the headline is
+always a phrasing somebody actually typed.
+
 The same rule binds the numbers we show the *owner*. A dashboard that invents a
 trend is the same failure as a receptionist that invents an answer, and it is
 easier to commit by accident. `trend.ts` therefore refuses to call a change

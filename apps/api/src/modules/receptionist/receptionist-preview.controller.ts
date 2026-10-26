@@ -23,6 +23,10 @@ import { UpdateLeadDto } from './dto/update-lead.dto.js';
 import { RateAnswerDto } from './dto/rate-answer.dto.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
 import { LeadService } from './lead.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { AnswerGapDto } from './dto/answer-gap.dto.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- value imports required for DI metadata
+import { KnowledgeService } from '../knowledge/knowledge.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { OrganizationGuard } from '../auth/guards/organization.guard.js';
 
@@ -47,6 +51,7 @@ export class ReceptionistPreviewController {
   constructor(
     private readonly receptionist: ReceptionistService,
     private readonly leads: LeadService,
+    private readonly knowledge: KnowledgeService,
   ) {}
 
   @Post('preview')
@@ -75,6 +80,55 @@ export class ReceptionistPreviewController {
       success: true,
       message: 'Receptionist insights',
       data: await this.receptionist.insights(businessId),
+    };
+  }
+
+  /**
+   * The unanswered questions, grouped into things to write.
+   *
+   * Separate from `insights`, whose gap list is grouped by exact string. See
+   * `ReceptionistService.gaps`.
+   */
+  @Get('gaps')
+  async gaps(@Param('businessId') businessId: string) {
+    return {
+      success: true,
+      message: 'Unanswered questions',
+      data: await this.receptionist.gaps(businessId),
+    };
+  }
+
+  /**
+   * Write the answer to a gap, and clear it.
+   *
+   * One request rather than two, because the two halves are not independently
+   * useful: a knowledge item created without clearing the gap leaves the
+   * owner's to-do list claiming work they just did, and a gap cleared without
+   * the item would be a lie. If the write fails nothing is cleared, which is
+   * the right way round — an uncleared gap is visible and fixable, a cleared
+   * one with no answer behind it is neither.
+   */
+  @Post('gaps/answer')
+  @HttpCode(HttpStatus.CREATED)
+  async answerGap(
+    @Param('businessId') businessId: string,
+    @Body() dto: AnswerGapDto,
+    @Request() req: { user: JwtPayload },
+  ) {
+    // `createFaq` returns the standard envelope, same as its own route does.
+    const created = await this.knowledge.createFaq(
+      businessId,
+      { userId: req.user.sub, organizationId: req.user.organizationId },
+      { question: dto.question, answer: dto.answer },
+    );
+    const itemId = created.data.item.id;
+
+    const { resolved } = await this.receptionist.resolveGap(businessId, dto.phrasings, itemId);
+
+    return {
+      success: true,
+      message: 'Answer saved',
+      data: { itemId, resolved },
     };
   }
 
